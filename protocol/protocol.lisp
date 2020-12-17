@@ -36,4 +36,4 @@
   ((connection)))
 
 (defgeneric encode-message (message stream))
-(defgeneric decode-message (stream))
+(defgeneric decode-message (type stream))

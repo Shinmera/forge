@@ -15,5 +15,6 @@
   :source-control (:git "https://github.com/Shinmera/forge.git")
   :serial T
   :components ((:file "protocol")
-               (:file "in-process"))
+               (:file "in-process")
+               (:file "binary"))
   :depends-on ())
