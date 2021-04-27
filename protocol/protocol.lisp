@@ -10,30 +10,51 @@
 
 (in-package #:org.shirakumo.forge.protocol)
 
+(defvar *timeout* NIL)
+
+(defmacro with-timeout (timeout &body body)
+  `(let ((*timeout* ,timeout))
+     ,@body))
+
 (defclass host () ())
-(defgeneric open (host)) ; => CONNECTION
+(defgeneric connect (host)) ; => CONNECTION
 (defgeneric serve (host)) ; => CONNECTION
 
 (defclass connection () ())
 (defgeneric host (connection)) ; => HOST
 (defgeneric alive-p (connection)) ; => BOOLEAN
-(defgeneric close (connection)) ; => CONNECTION
-(defgeneric write (message connection))
-(defgeneric read (connection &key timeout)) ; => MESSAGE
+(defgeneric send (message connection))
+(defgeneric receive (connection &key timeout)) ; => MESSAGE | NIL
 
 (defclass client-connection (connection) ())
 (defclass server-connection (connection) ())
 
 (defgeneric connections (server-connection)) ; => (CONNECTION)
-(defmethod write (message (server server-connection))
+(defmethod send (message (server server-connection))
   (dolist (connection (connections server))
     (write message connection)))
 
+(defclass artefact () ())
+(defclass side-effect-artefact (artefact) ())
+(defclass input-artefact (artefact) (input))
+(defclass output-artefact (artefact) (output))
+(defclass file-artefact (artefact) ())
+
 (defclass message () ())
-(defclass connection-established (message)
-  ((connection)))
-(defclass connection-lost (message)
-  ((connection)))
+(defclass connection-established (message) ())
+(defclass connection-lost (message) ())
+
+(defclass command (message) ())
+
+(defmethod write ((message command) (connection connection))
+  (call-next-method)
+  (read connection))
+
+(defclass build-artefact (command) (artefact args))
+(defclass check-artefact (command) (artefact))
+(defclass retrieve-artefact (command) (artefact))
+(defclass store-artefact (command) (artefact))
+(defclass query-artefacts (command) (query))
 
 (defgeneric encode-message (message stream))
 (defgeneric decode-message (type stream))
