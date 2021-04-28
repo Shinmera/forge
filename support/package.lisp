@@ -7,6 +7,9 @@
 (defpackage #:org.shirakumo.forge.support
   (:use #:cl)
   (:export
+   #:with-retry-restart
+   #:try-files)
+  (:export
    #:open-tcp
    #:list-tcp
    #:accept-tcp)

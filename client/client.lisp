@@ -18,20 +18,13 @@
                    :host (pathname-host this)
                    :device (pathname-device this))))
 
-(defmacro with-retry-restart ((&optional (name 'retry) (format-string "Retry") &rest format-args) &body body)
-  (let ((block (gensym "BLOCK"))
-        (retry (gensym "RETRY")))
-    `(block ,block
-       (tagbody
-          ,retry
-          (restart-case
-              (return-from ,block ,@body)
-            (,name ()
-              :report (lambda (s) (format s ,format-string ,@format-args))
-              (go ,retry)))))))
-
 (defun load-server (&optional (forge-source-root *forge-source-root*))
-  (load (merge-pathnames "server/load.lisp" forge-source-root)))
+  (unless (and (find-package '#:org.shirakumo.forge.server)
+               (find-symbol '#:loaded-p '#:org.shirakumo.forge.server)
+               (symbol-value (find-symbol '#:loaded-p '#:org.shirakumo.forge.server)))
+    (load (support:try-files (merge-pathnames "server/load.fasl" forge-source-root)
+                             (merge-pathnames "server/load.lisp" forge-source-root)
+                             (merge-pathnames "../server/load.fasl" #.*load-pathname*)))))
 
 (defgeneric launch-server (method &key connect &allow-other-keys))
 
@@ -68,7 +61,7 @@
                    (launch-arguments ()))
   (when (connected-p)
     (error 'already-connected :connection *forge-connection*))
-  (with-retry-restart ()
+  (support:with-retry-restart ()
     (or (protocol:connect (make-instance 'tcp:host :address address :port port) :timeout timeout)
         (ecase if-unavailable
           ((NIL)

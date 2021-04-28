@@ -14,11 +14,13 @@
   :bug-tracker "https://github.com/Shinmera/forge/issues"
   :source-control (:git "https://github.com/Shinmera/forge.git")
   :serial T
-  :components ((:file "process")
+  :components ((:file "toolkit")
+               (:file "process")
                (:file "socket"))
   :depends-on ((:feature :allegro (:require :sock))
                (:feature :clasp (:require :sockets))
                (:feature :ecl (:require :sockets))
                (:feature :lispworks (:require "comm"))
                (:feature :mkcl (:require :sockets))
-               (:feature :sbcl (:require :sb-bsd-sockets))))
+               (:feature :sbcl (:require :sb-bsd-sockets)
+                         (:require :sb-posix))))
