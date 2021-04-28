@@ -10,7 +10,6 @@
    (#:protocol #:org.shirakumo.forge.protocol))
   (:export
    #:host))
-
 (in-package #:org.shirakumo.forge.protocol.in-process)
 
 (defclass host (protocol:host protocol:client-connection protocol:server-connection)
@@ -68,3 +67,6 @@
     (unless (car (queue host))
       (setf (cdr (queue host)) NIL))
     start))
+
+(defmethod protocol:send ((command protocol:command) (host host))
+  (protocol:execute command))

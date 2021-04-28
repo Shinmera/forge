@@ -45,7 +45,7 @@
   ;; FIXME: handle timeout
   (protocol:decode-message (socket connection)))
 
-(defmethod protocol:write (message (connection client-connection))
+(defmethod protocol:send (message (connection client-connection))
   (protocol:encode-message (socket connection)))
 
 (defclass server-connection (connection protocol:server-connection)

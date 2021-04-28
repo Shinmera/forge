@@ -14,7 +14,9 @@
   :bug-tracker "https://github.com/Shinmera/forge/issues"
   :source-control (:git "https://github.com/Shinmera/forge.git")
   :serial T
-  :components ((:file "protocol")
+  :components ((:file "package")
+               (:file "communication")
+               (:file "artefact")
                (:file "in-process")
                (:file "binary"))
   :depends-on ())

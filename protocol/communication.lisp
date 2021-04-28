@@ -4,10 +4,6 @@
  Author: Nicolas Hafner <shinmera@tymoon.eu>
 |#
 
-(defpackage #:org.shirakumo.forge.protocol
-  (:use #:cl)
-  (:export))
-
 (in-package #:org.shirakumo.forge.protocol)
 
 (defvar *timeout* NIL)
@@ -34,27 +30,16 @@
   (dolist (connection (connections server))
     (write message connection)))
 
-(defclass artefact () ())
-(defclass side-effect-artefact (artefact) ())
-(defclass input-artefact (artefact) (input))
-(defclass output-artefact (artefact) (output))
-(defclass file-artefact (artefact) ())
-
 (defclass message () ())
 (defclass connection-established (message) ())
 (defclass connection-lost (message) ())
-
 (defclass command (message) ())
 
-(defmethod write ((message command) (connection connection))
+(defgeneric execute (command))
+
+(defmethod send ((message command) (connection connection))
   (call-next-method)
   (read connection))
-
-(defclass build-artefact (command) (artefact args))
-(defclass check-artefact (command) (artefact))
-(defclass retrieve-artefact (command) (artefact))
-(defclass store-artefact (command) (artefact))
-(defclass query-artefacts (command) (query))
 
 (defgeneric encode-message (message stream))
 (defgeneric decode-message (type stream))
