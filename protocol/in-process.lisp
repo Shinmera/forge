@@ -21,7 +21,7 @@
   (let ((sentinel (cons NIL NIL))))
   (setf (slot-value host 'queue) (cons sentinel sentinel)))
 
-(defmethod open ((host host))
+(defmethod protocol:connect ((host host))
   (ecase (state host)
     (:serving
      (setf (state host) :connected)
@@ -29,7 +29,7 @@
     (:connected
      host)))
 
-(defmethod serve ((host host))
+(defmethod protocol:serve ((host host))
   (ecase (state host)
     (:closed
      (setf (state host) :serving)
@@ -37,13 +37,13 @@
     ((:serving :connected)
      host)))
 
-(defmethod host ((host host))
+(defmethod protocol:host ((host host))
   host)
 
-(defmethod connections ((host host))
+(defmethod protocol:connections ((host host))
   (list host))
 
-(defmethod alive-p ((host host))
+(defmethod protocol:alive-p ((host host))
   (not (eql :closed (state host))))
 
 (defmethod close ((host host))
@@ -56,13 +56,13 @@
      (setf (cdr (queue host)) NIL)
      (setf (state host) :closed))))
 
-(defmethod write (message (host host))
+(defmethod protocol:write (message (host host))
   (let ((cons (cons message NIL)))
     (if (cdr (queue host))
         (setf (cddr (queue host)) cons)
         (setf (car (queue host)) (cdr (queue host)) cons))))
 
-(defmethod read ((host host) &key timeout)
+(defmethod protocol:read ((host host) &key timeout)
   (declare (ignore timeout))
   (let ((start (pop (car (queue host)))))
     (unless (car (queue host))

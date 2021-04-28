@@ -17,8 +17,8 @@
      ,@body))
 
 (defclass host () ())
-(defgeneric connect (host)) ; => CONNECTION
-(defgeneric serve (host)) ; => CONNECTION
+(defgeneric connect (host &key timeout)) ; => CONNECTION
+(defgeneric serve (host &key timeout)) ; => CONNECTION
 
 (defclass connection () ())
 (defgeneric host (connection)) ; => HOST

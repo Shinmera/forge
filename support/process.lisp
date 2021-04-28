@@ -4,14 +4,13 @@
  Author: Nicolas Hafner <shinmera@tymoon.eu>
 |#
 
-(defpackage #:org.shirakumo.forge.protocol.process
+(defpackage #:org.shirakumo.forge.support.process
   (:use #:cl)
-  (:local-nicknames
-   (#:protocol #:org.shirakumo.forge.protocol))
   (:export
-   #:launch))
-
-(in-package #:org.shirakumo.forge.protocol.process)
+   #:launch
+   #:terminate
+   #:exit-code))
+(in-package #:org.shirakumo.forge.support.process)
 
 (defun %launch (program args &key (output *standard-output*) (error *error-output*))
   (macrolet ((call (fun &rest args)
