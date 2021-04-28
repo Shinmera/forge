@@ -86,15 +86,26 @@
     (wu64 value stream))
   (ri64 stream))
 
-#++
-(define-encoding float (value stream)
-  (progn (wu8 (etypecase value
-                (short-float 0)
-                (single-float 1)
-                (double-float 2)
-                (long-float 3))
-              stream)
-         ()))
+;; KLUDGE: Base CL gives us only very inefficient means of doing this.
+(define-encoding single-float (value stream)
+  (multiple-value-bind (m e s) (integer-decode-float value)
+    (wu32 m stream)
+    (wu8 e stream)
+    (wu8 s stream))
+  (let ((m (ru32 stream))
+        (e (ri8 stream))
+        (s (ri8 stream)))
+    (float (* m s (expt 2 (abs e))) 0f0)))
+
+(define-encoding double-float (value stream)
+  (multiple-value-bind (m e s) (integer-decode-float value)
+    (wu64 m stream)
+    (wu16 e stream)
+    (wu8 s stream))
+  (let ((m (ru64 stream))
+        (e (ri16 stream))
+        (s (ri8 stream)))
+    (float (* m s (expt 2 (abs e))) 0f0)))
 
 (define-encoding string (value stream)
   (progn (wu32 (length value) stream)
@@ -105,6 +116,7 @@
     (dotimes (i (length arr) arr)
       (setf (aref arr i) (ru32 stream)))))
 
+;; KLUDGE: Pack element type
 (define-encoding vector (value stream)
   (progn (wu32 (length value) stream)
          (loop for object across value
