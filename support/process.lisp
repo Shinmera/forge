@@ -4,13 +4,7 @@
  Author: Nicolas Hafner <shinmera@tymoon.eu>
 |#
 
-(defpackage #:org.shirakumo.forge.support.process
-  (:use #:cl)
-  (:export
-   #:launch
-   #:terminate
-   #:exit-code))
-(in-package #:org.shirakumo.forge.support.process)
+(in-package #:org.shirakumo.forge.support)
 
 (defun %launch (program args &key (output *standard-output*) (error *error-output*))
   (macrolet ((call (fun &rest args)

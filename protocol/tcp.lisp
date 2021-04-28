@@ -10,23 +10,28 @@
    (#:protocol #:org.shirakumo.forge.protocol)
    (#:socket #:org.shirakumo.forge.support.socket))
   (:export
+   #:DEFAULT-PORT
    #:host
    #:connection
    #:client-connection
    #:server-connection))
 (in-package #:org.shirakumo.forge.protocol.tcp)
 
+(defconstant DEFAULT-PORT 1984)
+
 (defclass host (protocol:host)
   ((address :initarg :address :initform "0.0.0.0" :reader address)
-   (port :initarg :port :initform 5001 :reader port)))
+   (port :initarg :port :initform DEFAULT-PORT :reader port)))
 
 (defmethod protocol:connect ((host host) &key timeout)
   (let ((socket (socket:open-tcp (address host) (port host) :timeout timeout)))
-    (make-instance 'client-connection :host host :socket socket)))
+    (when socket
+      (make-instance 'client-connection :host host :socket socket))))
 
 (defmethod protocol:serve ((host host) &key timeout)
   (let ((socket (socket:listen-tcp (address host) (port host) :timeout timeout)))
-    (make-instance 'server-connection :host host :socket socket)))
+    (when socket
+      (make-instance 'server-connection :host host :socket socket))))
 
 (defclass connection (protocol:connection)
   ((host :initarg :host :initform (error "HOST required.") :reader protocol:host)

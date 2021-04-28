@@ -4,13 +4,7 @@
  Author: Nicolas Hafner <shinmera@tymoon.eu>
 |#
 
-(defpackage #:org.shirakumo.forge.support.tcp
-  (:use #:cl)
-  (:export
-   #:open-tcp
-   #:list-tcp
-   #:accept-tcp))
-(in-package #:org.shirakumo.forge.support.tcp)
+(in-package #:org.shirakumo.forge.support)
 
 (defun open-tcp (host port &key timeout (element-type '(unsigned-byte 8)))
   ;; FIXME: handle timeout

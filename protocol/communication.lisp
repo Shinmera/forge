@@ -21,6 +21,7 @@
 (defgeneric alive-p (connection)) ; => BOOLEAN
 (defgeneric send (message connection))
 (defgeneric receive (connection &key timeout)) ; => MESSAGE | NIL
+(defgeneric handle (message connection))
 
 (defclass client-connection (connection) ())
 (defclass server-connection (connection) ())
@@ -28,18 +29,30 @@
 (defgeneric connections (server-connection)) ; => (CONNECTION)
 (defmethod send (message (server server-connection))
   (dolist (connection (connections server))
-    (write message connection)))
+    (send message connection)))
 
 (defclass message () ())
 (defclass connection-established (message) ())
 (defclass connection-lost (message) ())
 (defclass command (message) ())
-
-(defgeneric execute (command))
-
-(defmethod send ((message command) (connection connection))
-  (call-next-method)
-  (read connection))
+(defclass exit (command) ())
 
 (defgeneric encode-message (message stream))
 (defgeneric decode-message (type stream))
+
+(defun command-loop (connection)
+  (with-simple-restart (exit-command-loop "Exit processing commands")
+    (flet ((receive ()
+             (handler-case (receive connection)
+               (error ()
+                 (handle (make-instance 'connection-lost) connection)
+                 (invoke-restart 'exit-command-loop)))))
+      (loop (restart-case
+                (handle (receive) connection)
+              (reconnect ()
+                :report (lambda (s) "Reconnect to ~a" (host connection))
+                ;; FIXME: What to do if reconnection fails?
+                (connect (host connection)))
+              (continue ()
+                :report "Ignore the message and continue processing."
+                NIL))))))

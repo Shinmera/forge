@@ -16,4 +16,5 @@
   :serial T
   :components ((:file "package")
                (:file "client"))
-  :depends-on (:forge-protocol))
+  :depends-on (:forge-support
+               :forge-protocol))
