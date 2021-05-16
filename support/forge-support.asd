@@ -16,7 +16,8 @@
   :serial T
   :components ((:file "toolkit")
                (:file "process")
-               (:file "socket"))
+               (:file "socket")
+               (:file "environment"))
   :depends-on ((:feature :allegro (:require :sock))
                (:feature :clasp (:require :sockets))
                (:feature :ecl (:require :sockets))

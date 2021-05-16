@@ -16,4 +16,8 @@
   (:export
    #:launch
    #:terminate
-   #:exit-code))
+   #:exit-code)
+  (:export
+   #:envvar
+   #:default-config-directory
+   #:default-cache-directory))

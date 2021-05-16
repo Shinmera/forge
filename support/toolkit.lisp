@@ -22,3 +22,10 @@
   (loop for path in pathnames
         do (when (probe-file path) (return path))
         finally (error "No matching paths.")))
+
+(defmacro or* (&rest args)
+  (let ((v (gensym "VALUE")))
+    `(or ,@(loop for arg in args
+                 collect `(let ((,v ,arg))
+                            (when (and ,v (not (equal ,v "")))
+                              ,v))))))
