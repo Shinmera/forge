@@ -79,6 +79,16 @@
              (declare (ignorable #'decode))
              ,decoder))))))
 
+(defmacro define-slot-coder (class &rest slots)
+  `(define-encoding ,class (value stream)
+     (progn
+       ,@(loop for slot in slots
+               collect `(encode (slot-value value ',slot))))
+     (let ((value (allocate-instance ',class)))
+       ,@(loop for slot in slots
+               collect `(setf (slot-value value ',slot) (decode)))
+       value)))
+
 (define-encoding null (value stream)
   ()
   NIL)
