@@ -14,7 +14,8 @@
   :bug-tracker "https://github.com/Shinmera/forge/issues"
   :source-control (:git "https://github.com/Shinmera/forge.git")
   :serial T
-  :components ((:file "toolkit")
+  :components ((:file "package")
+               (:file "toolkit")
                (:file "process")
                (:file "socket")
                (:file "environment"))
@@ -23,5 +24,5 @@
                (:feature :ecl (:require :sockets))
                (:feature :lispworks (:require "comm"))
                (:feature :mkcl (:require :sockets))
-               (:feature :sbcl (:require :sb-bsd-sockets)
-                         (:require :sb-posix))))
+               (:feature :sbcl (:require :sb-bsd-sockets))
+               (:feature :sbcl (:require :sb-posix))))

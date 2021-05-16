@@ -7,6 +7,7 @@
 (in-package #:org.shirakumo.forge.protocol)
 
 (defvar *timeout* NIL)
+(defvar *version* ())
 
 (defmacro with-timeout (timeout &body body)
   `(let ((*timeout* ,timeout))
@@ -15,6 +16,7 @@
 (defclass host () ())
 (defgeneric connect (host &key timeout)) ; => CONNECTION
 (defgeneric serve (host &key timeout)) ; => CONNECTION
+(defgeneric connections (host)) ; => (CONNECTION)
 
 (defclass connection () ())
 (defgeneric host (connection)) ; => HOST
@@ -25,11 +27,6 @@
 
 (defclass client-connection (connection) ())
 (defclass server-connection (connection) ())
-
-(defgeneric connections (server-connection)) ; => (CONNECTION)
-(defmethod send (message (server server-connection))
-  (dolist (connection (connections server))
-    (send message connection)))
 
 (defclass message () ())
 (defclass connection-established (message) ())

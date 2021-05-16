@@ -46,17 +46,17 @@
 
 (defclass client-connection (connection protocol:client-connection) ())
 
-(defmethod protocl:read ((connection client-connection) &key timeout)
+(defmethod protocl:receive ((connection client-connection) &key timeout)
   ;; FIXME: handle timeout
   (protocol:decode-message (socket connection)))
 
-(defmethod protocol:send (message (connection client-connection))
+(defmethod protocol:receive (message (connection client-connection))
   (protocol:encode-message (socket connection)))
 
 (defclass server-connection (connection protocol:server-connection)
   ((connections :initform () :accessor connections)))
 
-(defmethod protocol:read ((server server-connection) &key timeout)
+(defmethod protocol:receive ((server server-connection) &key timeout)
   (let ((socket (socket:accept-tcp (socket server) :timeout timeout)))
     (when socket
       (let ((client (make-instance 'client-connection :host (protocol:host connection) :socket socket)))

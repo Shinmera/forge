@@ -62,4 +62,12 @@
 
 (defmethod protocol:receive ((host host) &key timeout)
   (declare (ignore timeout))
-  NIL)
+  (let ((start (pop (car (queue host)))))
+    (unless (car (queue host))
+      (setf (cdr (queue host)) NIL))
+    start))
+
+(defmethod protocol:handle ((command protocol:exit) (host host))
+  (setf (state host) :closed)
+  (when (find-restart 'protocol:exit-command-loop)
+    (invoke-restart 'protocol:exit-command-loop)))
