@@ -10,6 +10,19 @@
   ((a :initarg :a :reader a)
    (b :initarg :b :reader b)))
 
+(defgeneric %parse-constraint (comp args))
+
+(defun parse-constraint (constraint)
+  (if (listp constraint)
+      (destructuring-bind (constraint-type . args) constraint
+        (%parse-constraint constraint-type args))
+      (%parse-constraint constraint ())))
+
+(defmacro define-constraint-parser (constraint args &body body)
+  `(defmethod %parse-constraint ((_ (eql ,constraint)) args)
+     (destructuring-bind ,args args
+       ,@body)))
+
 (defclass version-constraint ()
   ())
 
@@ -65,6 +78,12 @@
 (defmethod widen ((b version-constraint) (a version-unspecific-constraint))
   a)
 
+(defmethod to-string ((constraint version-unspecific-constraint))
+  "T")
+
+(define-constraint-parser T ()
+  (make-instance 'version-unspecific-constraint))
+
 (defclass version-equal-constraint ()
   ((version :initarg :version :initform *unknown-version* :reader version)))
 
@@ -85,6 +104,9 @@
 
 (defmethod to-string ((constraint version-equal-constraint))
   (format NIL "=~a" (to-string (version constraint))))
+
+(define-constraint-parser = (version)
+  (make-instance 'version-equal-constraint :version (parse-version version)))
 
 (defclass version-range-constraint ()
   ((min-version :initarg :min-version :initform *minimal-version* :reader min-version)
@@ -149,6 +171,14 @@
 (defmethod to-string ((constraint version-equal-constraint))
   (format NIL "[~a,~a]" (to-string (min-version constraint)) (to-string (max-version constraint))))
 
+(define-constraint-parser <= (version)
+  (make-instance 'version-range-constraint :max-version (parse-version version)))
+(define-constraint-parser >= (version)
+  (make-instance 'version-range-constraint :min-version (parse-version version)))
+(define-constraint-parser [ (min max)
+  (make-instance 'version-range-constraint :min-version (parse-version min)
+                                           :max-version (parse-version max)))
+
 (defclass constraint-union ()
   ((set :initarg :set :reader set)))
 
@@ -190,7 +220,7 @@
                             :min-version (min-version (first set))
                             :max-version (max-version (first set))))))
           (T
-           (error 'constraints-incompatible :a union :b union)))))
+           (error "Can't construct a constraint union: set is empty.")))))
 
 (defmethod version-match-p ((version version) (constraint constraint-union))
   (loop for constraint in (set constraint)
@@ -260,3 +290,6 @@
           do (write-string (to-string constraint) stream)
              (when rest (write-char #\, stream)))
     (format stream "}")))
+
+(define-constraint-parser or (&rest constraints)
+  (make-instance 'constraint-union :set (mapcar #'parse-constraint constraints)))

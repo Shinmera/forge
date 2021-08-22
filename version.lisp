@@ -12,6 +12,7 @@
 (defgeneric version= (a b))
 (defgeneric version< (a b))
 (defgeneric to-string (version))
+(defgeneric parse-version (thing))
 
 (defgeneric version<= (a b)
   (:method ((a version) (b version))
@@ -37,6 +38,9 @@
 
 (defvar *unknown-version* (make-instance 'unknown-version))
 
+(defmethod parse-version ((version (eql NIL)))
+  *unknown-version*)
+
 (defclass maximal-version (version)
   ())
 
@@ -46,6 +50,9 @@
 (defmethod version< ((b version) (a maximal-version)) T)
 (defmethod version< ((a maximal-version) (b version)) NIL)
 (defmethod to-string ((v unknown-version)) "+∞")
+
+(defmethod parse-version ((version (eql :max)))
+  *maximal-version*)
 
 (defvar *maximal-version* (make-instance 'maximal-version))
 
@@ -58,6 +65,9 @@
 (defmethod version< ((b version) (a minimal-version)) NIL)
 (defmethod version< ((a minimal-version) (b version)) T)
 (defmethod to-string ((v unknown-version)) "-∞")
+
+(defmethod parse-version ((version (eql :min)))
+  *minimal-version*)
 
 (defvar *minimal-version* (make-instance 'minimal-version))
 
@@ -73,6 +83,9 @@
 (defmethod to-string ((v integer-version))
   (princ-to-string (value v)))
 
+(defmethod parse-version ((version integer))
+  (make-instance 'integer-version :value version))
+
 (defclass hashed-version (version)
   ((value :initarg :value :initform 0 :accessor value)))
 
@@ -84,6 +97,9 @@
 
 (defmethod to-string ((v hashed-version))
   (value v))
+
+(defmethod parse-version ((version string))
+  (make-instance 'hashed-version :value version))
 
 (defclass separated-version (version)
   ((value :initarg :value :initform '(1) :accessor value)))
@@ -103,6 +119,9 @@
 
 (defmethod to-string ((v separated-version))
   (format NIL "~{~d~^.~}" (value v)))
+
+(defmethod parse-version ((version cons))
+  (make-instance 'separated-version :value version))
 
 (defclass versioned-object ()
   ((version :initarg :version :initform *unknown-version* :accessor version)))
