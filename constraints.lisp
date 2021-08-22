@@ -15,7 +15,8 @@
 
 (defgeneric version-match-p (version constraint))
 (defgeneric constraint-subset-p (sub sup))
-(defgeneric unify (constraint constraint))
+(defgeneric unify (a b))
+(defgeneric widen (a b))
 
 (defmethod print-object ((constraint version-constraint) stream)
   (print-unreadable-object (constraint stream)
@@ -58,6 +59,12 @@
 (defmethod unify ((b version-constraint) (a version-unspecific-constraint))
   b)
 
+(defmethod widen ((a version-unspecific-constraint) (b version-constraint))
+  a)
+
+(defmethod widen ((b version-constraint) (a version-unspecific-constraint))
+  a)
+
 (defclass version-equal-constraint ()
   ((version :initarg :version :initform *unknown-version* :reader version)))
 
@@ -71,6 +78,10 @@
   (unless (version= (version a) (version b))
     (error 'constraints-incompatible :a a :b b))
   a)
+
+(defmethod widen ((a version-equal-constraint) (b version-equal-constraint))
+  (when (version= (version a) (version b))
+    a))
 
 (defmethod to-string ((constraint version-equal-constraint))
   (format NIL "=~a" (to-string (version constraint))))
@@ -117,6 +128,24 @@
 (defmethod unify ((b version-equal-constraint) (a version-range-constraint))
   (unify a b))
 
+(defmethod widen ((a version-range-constraint) (b version-range-constraint))
+  (cond ((constraint-subset-p a b) b)
+        ((constraint-subset-p b a) a)
+        ((or (and (version<= (min-version a) (max-version b))
+                   (version<= (max-version b) (max-version a)))
+              (and (version<= (min-version a) (min-version b))
+                   (version<= (min-version b) (max-version a))))
+         (make-instance 'version-range-constraint
+                        :min-version (version-min (min-version b) (min-version a))
+                        :max-version (version-max (max-version b) (max-version a))))))
+
+(defmethod widen ((a version-range-constraint) (b version-equal-constraint))
+  (when (constraint-subset-p b a)
+    a))
+
+(defmethod widen ((b version-equal-constraint) (a version-range-constraint))
+  (widen a b))
+
 (defmethod to-string ((constraint version-equal-constraint))
   (format NIL "[~a,~a]" (to-string (min-version constraint)) (to-string (max-version constraint))))
 
@@ -125,18 +154,34 @@
 
 (defmethod initialize-instance :after ((union constraint-union) &key)
   (let ((set ()))
-    (dolist (constraint (set union))
-      (etypecase constraint
-        (constraint-union
-         (dolist (sub constraint)
-           (push sub set)))
-        (version-constraint
-         (push constraint set))))
-    ;; FIXME: Reduce set by merging compatible ranges
+    (flet ((add (new)
+             (etypecase new
+               (version-unspecific-constraint
+                (setf set (list new)))
+               (version-equal-constraint
+                (loop for other in set
+                      do (when (constraint-subset-p new other)
+                           (return))
+                      finally (push new set)))
+               (version-range-constraint
+                (loop for cons on set
+                      for wider = (widen (car cons) new)
+                      do (when wider
+                           (return (setf (car cons) wider)))
+                      finally (push new set))))))
+      (dolist (constraint (set union))
+        (etypecase constraint
+          (constraint-union
+           (dolist (sub constraint)
+             (add sub)))
+          (version-constraint
+           (add constraint)))))
     (cond ((rest set)
            (setf (slot-value union 'set) set))
           (set
            (etypecase (first set)
+             (version-unspecific-constraint
+              (change-class union 'version-unspecific-constraint))
              (version-equal-constraint
               (change-class union 'version-equal-constraint
                             :version (version (first set))))
@@ -201,6 +246,12 @@
 
 (defmethod unify ((b version-equal-constraint) (a constraint-union))
   (unify a b))
+
+(defmethod widen ((a constraint-union) (b constraint-union))
+  (make-instance 'constraint-union :set (append (set a) (set b))))
+
+(defmethod widen ((a constraint-union) (b version-constraint))
+  (make-instance 'constraint-union :set (list* b (set a))))
 
 (defmethod to-string ((constraint version-equal-constraint))
   (with-output-to-string (stream)
