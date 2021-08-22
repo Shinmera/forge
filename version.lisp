@@ -34,7 +34,7 @@
 (defmethod version= (b (a unknown-version)) NIL)
 (defmethod version< ((a unknown-version) b) T)
 (defmethod version< (b (a unknown-version)) NIL)
-(defmethod to-string ((v unknown-version)) "")
+(defmethod to-string ((v unknown-version)) "?")
 
 (defvar *unknown-version* (make-instance 'unknown-version))
 
@@ -49,7 +49,7 @@
 (defmethod version= ((b version) (a maximal-version)) NIL)
 (defmethod version< ((b version) (a maximal-version)) T)
 (defmethod version< ((a maximal-version) (b version)) NIL)
-(defmethod to-string ((v unknown-version)) "+∞")
+(defmethod to-string ((v maximal-version)) "+∞")
 
 (defmethod parse-version ((version (eql :max)))
   *maximal-version*)
@@ -64,7 +64,7 @@
 (defmethod version= ((b version) (a minimal-version)) NIL)
 (defmethod version< ((b version) (a minimal-version)) NIL)
 (defmethod version< ((a minimal-version) (b version)) T)
-(defmethod to-string ((v unknown-version)) "-∞")
+(defmethod to-string ((v minimal-version)) "-∞")
 
 (defmethod parse-version ((version (eql :min)))
   *minimal-version*)

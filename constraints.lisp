@@ -19,7 +19,7 @@
       (%parse-constraint constraint ())))
 
 (defmacro define-constraint-parser (constraint args &body body)
-  `(defmethod %parse-constraint ((_ (eql ,constraint)) args)
+  `(defmethod %parse-constraint ((_ (eql ',constraint)) args)
      (destructuring-bind ,args args
        ,@body)))
 
@@ -51,19 +51,19 @@
           when (version-match-p (funcall key version) constraint)
           collect version)))
 
-(defclass version-unspecific-constraint ()
+(defclass version-unspecific-constraint (version-constraint)
   ())
 
 (defmethod version-match-p ((version version) (constraint version-unspecific-constraint))
   T)
 
-(defmethod constraint-subset-p ((sub version-unspecific-constraint) (sub version-unspecific-constraint))
+(defmethod constraint-subset-p ((sub version-unspecific-constraint) (sup version-unspecific-constraint))
   T)
 
-(defmethod constraint-subset-p ((sub version-constraint) (sub version-unspecific-constraint))
+(defmethod constraint-subset-p ((sub version-constraint) (sup version-unspecific-constraint))
   T)
 
-(defmethod constraint-subset-p ((sub version-unspecific-constraint) (sub version-constraint))
+(defmethod constraint-subset-p ((sub version-unspecific-constraint) (sup version-constraint))
   NIL)
 
 (defmethod unify ((a version-unspecific-constraint) (b version-constraint))
@@ -84,7 +84,7 @@
 (define-constraint-parser T ()
   (make-instance 'version-unspecific-constraint))
 
-(defclass version-equal-constraint ()
+(defclass version-equal-constraint (version-constraint)
   ((version :initarg :version :initform *unknown-version* :reader version)))
 
 (defmethod version-match-p ((version version) (constraint version-equal-constraint))
@@ -108,7 +108,7 @@
 (define-constraint-parser = (version)
   (make-instance 'version-equal-constraint :version (parse-version version)))
 
-(defclass version-range-constraint ()
+(defclass version-range-constraint (version-constraint)
   ((min-version :initarg :min-version :initform *minimal-version* :reader min-version)
    (max-version :initarg :max-version :initform *maximal-version* :reader max-version)))
 
@@ -168,7 +168,7 @@
 (defmethod widen ((b version-equal-constraint) (a version-range-constraint))
   (widen a b))
 
-(defmethod to-string ((constraint version-equal-constraint))
+(defmethod to-string ((constraint version-range-constraint))
   (format NIL "[~a,~a]" (to-string (min-version constraint)) (to-string (max-version constraint))))
 
 (define-constraint-parser <= (version)
@@ -179,89 +179,97 @@
   (make-instance 'version-range-constraint :min-version (parse-version min)
                                            :max-version (parse-version max)))
 
-(defclass constraint-union ()
-  ((set :initarg :set :reader set)))
+(defclass constraint-union (version-constraint)
+  ((constraints :initarg :constraints :reader constraints)))
 
 (defmethod initialize-instance :after ((union constraint-union) &key)
-  (let ((set ()))
+  (let ((constraints ()))
     (flet ((add (new)
              (etypecase new
                (version-unspecific-constraint
-                (setf set (list new)))
+                (setf constraints (list new)))
                (version-equal-constraint
-                (loop for other in set
+                (loop for other in constraints
                       do (when (constraint-subset-p new other)
                            (return))
-                      finally (push new set)))
+                      finally (push new constraints)))
                (version-range-constraint
-                (loop for cons on set
-                      for wider = (widen (car cons) new)
-                      do (when wider
-                           (return (setf (car cons) wider)))
-                      finally (push new set))))))
-      (dolist (constraint (set union))
+                (loop with cons = constraints
+                      while cons
+                      do (let ((wider (widen (car cons) new)))
+                           (cond ((null wider)
+                                  (setf cons (cdr cons)))
+                                 ((cdr cons)
+                                  (setf (car cons) (cadr cons))
+                                  (setf (cdr cons) (cddr cons))
+                                  (setf new wider))
+                                 (T
+                                  (setf (car cons) wider)
+                                  (return))))
+                      finally (push new constraints))))))
+      (dolist (constraint (constraints union))
         (etypecase constraint
           (constraint-union
            (dolist (sub constraint)
              (add sub)))
           (version-constraint
            (add constraint)))))
-    (cond ((rest set)
-           (setf (slot-value union 'set) set))
-          (set
-           (etypecase (first set)
+    (cond ((rest constraints)
+           (setf (slot-value union 'constraints) constraints))
+          (constraints
+           (etypecase (first constraints)
              (version-unspecific-constraint
               (change-class union 'version-unspecific-constraint))
              (version-equal-constraint
               (change-class union 'version-equal-constraint
-                            :version (version (first set))))
+                            :version (version (first constraints))))
              (version-range-constraint
               (change-class union 'version-range-constraint
-                            :min-version (min-version (first set))
-                            :max-version (max-version (first set))))))
+                            :min-version (min-version (first constraints))
+                            :max-version (max-version (first constraints))))))
           (T
            (error "Can't construct a constraint union: set is empty.")))))
 
 (defmethod version-match-p ((version version) (constraint constraint-union))
-  (loop for constraint in (set constraint)
+  (loop for constraint in (constraints constraint)
         thereis (version-match-p version constraint)))
 
 (defmethod constraint-subset-p ((a constraint-union) (b constraint-union))
-  (loop for constraint in (set a)
+  (loop for constraint in (constraints a)
         always (constraint-subset-p a b)))
 
 (defmethod constraint-subset-p ((a version-constraint) (b constraint-union))
-  (loop for constraint in (set b)
+  (loop for constraint in (constraints b)
         thereis (constraint-subset-p a constraint)))
 
 (defmethod constraint-subset-p ((a constraint-union) (b version-equal-constraint))
   NIL)
 
 (defmethod constraint-subset-p ((a constraint-union) (b version-range-constraint))
-  (loop for constraint in (set a)
+  (loop for constraint in (constraints a)
         always (constraint-subset-p constraint b)))
 
 (defmethod unify ((a constraint-union) (b constraint-union))
-  (let ((set ()))
-    (dolist (ac (set a))
-      (dolist (bc (set b))
-        (handler-case (push (unify ac bc) set)
+  (let ((constraints ()))
+    (dolist (ac (constraints a))
+      (dolist (bc (constraints b))
+        (handler-case (push (unify ac bc) constraints)
           (constraints-incompatible ()))))
-    (cond ((rest set)
-           (make-instance 'constraint-union :set set))
-          (set
-           (first set))
+    (cond ((rest constraints)
+           (make-instance 'constraint-union :constraints constraints))
+          (constraints
+           (first constraints))
           (T
            (error 'constraints-incompatible :a a :b b)))))
 
 (defmethod unify ((a constraint-union) (b version-equal-constraint))
-  (loop for constraint in (set a)
+  (loop for constraint in (constraints a)
         do (when (constraint-subset-p b constraint)
              (return b))
         finally (error 'constraints-incompatible :a a :b b)))
 
 (defmethod unify ((a constraint-union) (b version-range-constraint))
-  (loop for constraint in (set a)
+  (loop for constraint in (constraints a)
         do (cond ((constraint-subset-p b constraint)
                   (return b))
                  ((constraint-subset-p constraint b)
@@ -271,25 +279,25 @@
 (defmethod unify ((b version-range-constraint) (a constraint-union))
   (unify a b))
 
-(defmethod unify ((a constraint-union) (b version-equal-constraint))
-  (make-instance 'constraint-union :set (list* b (set a))))
-
 (defmethod unify ((b version-equal-constraint) (a constraint-union))
   (unify a b))
 
 (defmethod widen ((a constraint-union) (b constraint-union))
-  (make-instance 'constraint-union :set (append (set a) (set b))))
+  (make-instance 'constraint-union :constraints (append (constraints a) (constraints b))))
 
 (defmethod widen ((a constraint-union) (b version-constraint))
-  (make-instance 'constraint-union :set (list* b (set a))))
+  (make-instance 'constraint-union :constraints (list* b (constraints a))))
 
-(defmethod to-string ((constraint version-equal-constraint))
+(defmethod widen ((b version-constraint) (a constraint-union))
+  (widen a b))
+
+(defmethod to-string ((constraint constraint-union))
   (with-output-to-string (stream)
     (format stream "{")
-    (loop for (constraint rest) on (set constraint)
+    (loop for (constraint rest) on (constraints constraint)
           do (write-string (to-string constraint) stream)
              (when rest (write-char #\, stream)))
     (format stream "}")))
 
 (define-constraint-parser or (&rest constraints)
-  (make-instance 'constraint-union :set (mapcar #'parse-constraint constraints)))
+  (make-instance 'constraint-union :constraints (mapcar #'parse-constraint constraints)))
