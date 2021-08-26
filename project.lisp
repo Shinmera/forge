@@ -50,14 +50,13 @@ without having to name an effect by identity:
     policy)                ; A way to disambiguate multiple sources.
     => (operation component) 
 
-  (search-effect
+  (list-effects
     effect-type            ; The type of effect we require.
     effect-parameters      ; Parameters of the effect that uniquely
                            ; identify it.
-    version-constraint     ; A parameter to further constrain the
+    version-constraint)    ; A parameter to further constrain the
                            ; versions permitted for the effect.
-    policy)
-    => effect
+    => [effect]
 
 We can expand the protocol with the following lower-level functions
 to use as a base for implementing the above:
@@ -72,8 +71,6 @@ to use as a base for implementing the above:
     => [(operation component)]
   (select-source policy effect sources)
     => (operation component)
-  (select-effect policy source effects)
-    => effect
 
 The krux in this interface is the implementation of these "effect
 parameters" that uniquely identify effects of the same type. It
@@ -124,9 +121,7 @@ do that, though.
 
 (defgeneric ensure-effect (component operation type parameters))
 (defgeneric in-order-to (effect policy))
-(defgeneric search-effect (type parameters version policy))
 (defgeneric select-source (policy effect sources))
-(defgeneric select-effect (policy source effects))
 (defgeneric perform (operation component))
 (defgeneric compute-plan (effect policy))
 (defgeneric execute (plan executor))
