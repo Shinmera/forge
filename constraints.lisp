@@ -8,7 +8,9 @@
 
 (define-condition constraints-incompatible (error)
   ((a :initarg :a :reader a)
-   (b :initarg :b :reader b)))
+   (b :initarg :b :reader b))
+  (:report (lambda (c s) (format s "The two constraints~%  ~a~% and~%  ~a~%are mutually exclusive and cannot be unified."
+                                 (a c) (b c)))))
 
 (defgeneric %parse-constraint (comp args))
 
@@ -22,6 +24,9 @@
   `(defmethod %parse-constraint ((_ (eql ',constraint)) args)
      (destructuring-bind ,args args
        ,@body)))
+
+(defmethod constraint ((spec cons))
+  (parse-constraint spec))
 
 (defclass version-constraint ()
   ())
