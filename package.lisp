@@ -8,6 +8,5 @@
   (:use #:cl)
   (:local-nicknames
    (#:support #:org.shirakumo.forge.support)
-   (#:tcp #:org.shirakumo.forge.protocol.tcp)
    (#:protocol #:org.shirakumo.forge.protocol))
   (:export))

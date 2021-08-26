@@ -6,5 +6,4 @@
 
 (in-package #:org.shirakumo.forge)
 
-(defclass project ()
-  ())
+

@@ -15,6 +15,8 @@
   :source-control (:git "https://github.com/Shinmera/forge.git")
   :serial T
   :components ((:file "package")
+               (:file "version")
+               (:file "constraints")
                (:file "project"))
   :depends-on (:forge-support
                :forge-protocol))

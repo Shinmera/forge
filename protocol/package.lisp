@@ -29,7 +29,8 @@
    #:exit
    #:encode-message
    #:decode-message
-   #:command-loop)
+   #:command-loop
+   #:exit-command-loop)
   ;; artefact.lisp
   (:export
    #:artefact)
