@@ -27,6 +27,12 @@
   (:method ((a version) (b version))
     (if (version< a b) b a)))
 
+(defmethod support:generic< ((a version) (b version))
+  (version<= a b))
+
+(defmethod parse-version ((version version))
+  version)
+
 (defclass unknown-version (version)
   ())
 

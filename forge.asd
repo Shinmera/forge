@@ -17,6 +17,8 @@
   :components ((:file "package")
                (:file "version")
                (:file "constraints")
-               (:file "project"))
+               (:file "plan")
+               (:file "basic"))
   :depends-on (:forge-support
-               :forge-protocol))
+               :forge-protocol
+               :closer-mop))

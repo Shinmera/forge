@@ -87,7 +87,7 @@
   "T")
 
 (define-constraint-parser T ()
-  (make-instance 'version-unspecific-constraint))
+  (load-time-value (make-instance 'version-unspecific-constraint)))
 
 (defclass version-equal-constraint (version-constraint)
   ((version :initarg :version :initform *unknown-version* :reader version)))

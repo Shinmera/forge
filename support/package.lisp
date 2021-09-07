@@ -8,7 +8,9 @@
   (:use #:cl)
   (:export
    #:with-retry-restart
-   #:try-files)
+   #:try-files
+   #:or*
+   #:generic<)
   (:export
    #:open-tcp
    #:list-tcp
