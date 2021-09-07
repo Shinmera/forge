@@ -118,6 +118,9 @@ do that, though.
 
 (defgeneric supported-operations (component))
 
+(defmethod supported-operations ((component component))
+  ())
+
 (defmethod initialize-instance :after ((component component) &key)
   (dolist (op (supported-operations component))
     (make-effect op component)))
@@ -129,6 +132,9 @@ do that, though.
 (defgeneric perform (operation component))
 (defgeneric make-effect (operation component))
 (defgeneric ensure-effect (operation component type parameters))
+
+(defmethod dependencies ((operation operation) (component component))
+  ())
 
 (defmethod make-effect ((operation symbol) (component component))
   (make-effect (c2mop:class-prototype (find-class operation)) component))
@@ -153,7 +159,7 @@ do that, though.
                  :hard hard))
 
 (defclass effect (versioned-object)
-  ((sources :initarg :sources :accessor sources)
+  ((sources :initarg :sources :initform () :accessor sources)
    (parameters :reader parameters)))
 
 (defgeneric sources (effect))
@@ -190,6 +196,12 @@ do that, though.
 (defmethod in-order-to ((effect effect) (policy policy))
   (select-source policy effect (sources effect)))
 
+(defmethod make-operation ((operation symbol) (component component) (effect effect) (policy policy))
+  (make-operation (make-instance operation) component effect policy))
+
+(defmethod make-operation ((operation operation) (component component) (effect effect) (policy policy))
+  operation)
+
 (defclass executor ()
   ())
 
@@ -198,6 +210,12 @@ do that, though.
    (final-steps :initarg :final-steps :initofrm #() :reader final-steps)))
 
 (defgeneric make-step (plan operation component effect))
+
+(defmethod make-step ((operation operation) (component component) (effect effect))
+  (make-instance 'step
+                 :operation operation
+                 :component component
+                 :effect effect))
 
 (defclass step ()
   ((operation :initarg :operation :reader operation)
@@ -209,3 +227,14 @@ do that, though.
 (defgeneric execute (plan/step executor))
 (defgeneric effect-realized-p (effect executor))
 (defgeneric connect (from to))
+
+(defmethod execute ((step step) (executor executor))
+  (unless (effect-realized-p (effect step) executor)
+    (perform (operation step) (component step))))
+
+(defmethod effect-realized-p ((effect effect) (executor executor))
+  NIL)
+
+(defmethod connect ((from step) (to step))
+  (pushnew to (successors from))
+  (pushnew from (predecessors to)))

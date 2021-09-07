@@ -89,15 +89,6 @@
 (defclass basic-policy (policy)
   ())
 
-(defmethod make-operation (operation (component component) (effect effect) (policy basic-policy))
-  (make-instance operation))
-
-(defmethod make-step ((operation operation) (component component) (effect effect))
-  (make-instance 'step
-                 :operation operation
-                 :component component
-                 :effect effect))
-
 (defmethod compute-plan ((effect effect) (policy basic-policy))
   (let ((visit (make-hash-table :test 'eq)))
     ))
@@ -105,15 +96,12 @@
 (defclass basic-executor (executor)
   ((force :initarg :force :initform NIL :accessor force)))
 
-(defmethod execute ((plan plan) (executor basic-executor))
-  (loop for step across (steps plan)
-        do (execute step executor)))
-
-(defmethod connect ((from step) (to step))
-  (pushnew to (successors from))
-  (pushnew from (predecessors to)))
-
 (defmethod execute ((step step) (executor basic-executor))
   (when (or (force executor)
             (not (effect-realized-p (effect step) executor)))
     (perform (operation step) (component step))))
+
+(defmethod execute ((plan plan) (executor basic-executor))
+  (loop for step across (steps plan)
+        do (execute step executor)))
+
