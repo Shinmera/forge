@@ -9,7 +9,7 @@ Author: Nicolas Hafner <shinmera@tymoon.eu>
 (setf *database* (make-instance 'basic-database))
 
 (defclass lisp-file (component)
-  ((depends-on :initarg :depends-on :reader depends-on)))
+  ((depends-on :initarg :depends-on :initform () :reader depends-on)))
 (defclass lisp-source-op (operation) ())
 (defclass compile-op (lisp-source-op) ())
 (defclass load-op (lisp-source-op) ())

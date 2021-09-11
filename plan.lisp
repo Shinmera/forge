@@ -142,7 +142,7 @@ do that, though.
 (defmethod ensure-effect (operation (component component) type parameters)
   (let ((effect (or (find-effect *database* type parameters (version component) NIL)
                     (register-effect *database* (make-instance type :parameters parameters :version (version component))))))
-    (add-source component operation effect)
+    (add-source operation component effect)
     effect))
 
 (defclass dependency ()
@@ -166,6 +166,7 @@ do that, though.
 (defgeneric add-source (operation component effect))
 (defgeneric parameters (effect))
 (defgeneric normalize-parameters (effect parameters))
+(defgeneric variant-p (effect-1 effect-2))
 
 (defmethod initialize-instance ((effect effect) &key parameters)
   (call-next-method)
@@ -184,6 +185,10 @@ do that, though.
 
 (defmethod normalize-parameters ((effect effect) parameters)
   parameters)
+
+(defmethod variant-p ((a effect) (b effect))
+  (and (eq (type-of a) (type-of b))
+       (equal (parameters a) (parameters b))))
 
 (defclass policy ()
   ())
@@ -207,9 +212,9 @@ do that, though.
 
 (defclass plan ()
   ((first-steps :initarg :first-steps :initform #() :reader first-steps)
-   (final-steps :initarg :final-steps :initofrm #() :reader final-steps)))
+   (final-steps :initarg :final-steps :initform #() :reader final-steps)))
 
-(defgeneric make-step (plan operation component effect))
+(defgeneric make-step (operation component effect))
 
 (defmethod make-step ((operation operation) (component component) (effect effect))
   (make-instance 'step
