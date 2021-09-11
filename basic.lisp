@@ -113,15 +113,27 @@
 
 (defmethod compute-plan ((effect effect) (policy basic-policy))
   (let ((visit (make-hash-table :test 'equal)))
+    ;; Note: We first compute the set of possible version constraints for all involved effects. If this set turns
+    ;;       out to be empty for the root effect, we know it's unsatisfiable overall. Most likely though we are
+    ;;       going to get a huge set of possible alternatives to pick from. We actually resolve this set in a second
+    ;;       step where we compute the actual plan.
     (labels ((visit (effect)
                (etypecase (gethash effect visit :none)
                  ((eql :tentative) (error "Cycle."))
                  (list (gethash effect visit :none))
                  ((eql :none)
                   (setf (gethash effect visit) :tentative)
+                  ;; Note: We eagerly select the source here, which can lead to an unsatisfiable plan even when
+                  ;;       another source might provide a satisfiable plan. However, for a first attempt, and for
+                  ;;       my own sanity's sake, I'm going to ignore this for the time being.
                   (let* ((source (select-source policy effect (sources effect)))
                          (component (second source))
                          (operation (make-operation (first source) component effect policy))
+                         ;; Note: We only consider hard dependencies here. Optionals are pulled in in another phase
+                         ;;       once we have already settled on a version set for everything else. This means we
+                         ;;       potentially don't select optionals that might be possible in another set, but it
+                         ;;       massively simplifies the plan computation, and at this point I'm too tired of trying
+                         ;;       to come up with a holistic solution to continue doing the "absolutely right thing".
                          (dependencies (remove-if-not #'hard-p (dependencies operation component)))
                          (depchoices T))
                     (dolist (dependency dependencies)
