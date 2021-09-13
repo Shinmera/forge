@@ -81,10 +81,29 @@
                          (support:generic< (car a) (car b))))))
 
 (defclass basic-policy (policy)
-  ())
+  ((operation-cache :initform (make-hash-table :test 'eq) :accessor operation-cache)))
 
 (defmethod select-source ((policy basic-policy) (effect effect) sources)
   (first sources))
+
+(defmethod make-operation ((operation symbol) (component component) (effect effect) (policy basic-policy))
+  (or (gethash operation (operation-cache policy))
+      (setf (gethash operation (operation-cache policy)) (make-instance operation))))
+
+(defmethod select-effect-set ((policy basic-policy) sets)
+  ;; FIXME: This is not stable as the order of effects within a set is not stable.
+  (flet ((set> (a b)
+           (loop for ae in a
+                 for be in b
+                 do (cond ((version= ae be))
+                          ((version< ae be)
+                           (return NIL))
+                          (T
+                           (return T))))))
+    (let ((min (first sets)))
+      (dolist (set (rest sets) min)
+        (when (set> set min)
+          (setf min set))))))
 
 (defun unify-dependency-sets (a b)
   (flet ((try-unify (a b)
@@ -147,7 +166,57 @@
                           (if (eql T depchoices) (list (list effect))
                               (loop for choice in depchoices
                                     collect (list* effect choice)))))))))
-      (visit effect))))
+      (unless (visit effect)
+        (error "Unsatisfiable.")))
+    ;; Note: Next we select one set of the viable effects set and traverse the graph again. We now select the effect
+    ;;       that matches our dependency directly from the set that we used and don't bother with checking cycles.
+    ;;       We also now check optional dependencies and see if all of their dependencies are already contained in
+    ;;       our set. If so, we pull their steps in. Once we have constructed steps for each effect, we can then
+    ;;       figure out the head and tail steps and construct the actual plan object.
+    (let ((effects (select-effect-set policy (gethash effect visit)))
+          (step-table (make-hash-table :test 'eq))
+          (first-steps (make-array 0 :adjustable T :fill-pointer T))
+          (final-steps (make-array 0 :adjustable T :fill-pointer T)))
+      (labels ((find-effect (dependency)
+                 ;; FIXME: This seems slow as balls? Surely there's a better way...
+                 (let ((type (effect-type dependency))
+                       (parameters (parameters dependency)))
+                   (dolist (effect effects (error "WTF?"))
+                     (when (and (eql (type-of effect) type)
+                                (equal (parameters effect) parameters))
+                       (return effect)))))
+               (maybe-visit (dependency)
+                 (do-effects (effect *database* (effect-type dependency) (parameters dependency) (version dependency))
+                   (let* ((source (select-source policy effect (sources effect)))
+                          (component (second source))
+                          (operation (make-operation (first source) component effect policy))
+                          (dependencies (dependencies operation component)))
+                     (when (loop for dependency in dependencies
+                                 always (find-effect dependency))
+                       (return (visit effect))))))
+               (visit (effect)
+                 (or (gethash effect step-table)
+                     (let* ((source (select-source policy effect (sources effect)))
+                            (component (second source))
+                            (operation (make-operation (first source) component effect policy))
+                            (step (make-step operation component effect))
+                            (dependencies (dependencies operation component)))
+                       (dolist (dependency dependencies)
+                         (let ((predecessor (if (hard-p dependency)
+                                                (visit (find-effect dependency))
+                                                (maybe-visit dependency))))
+                           (when predecessor
+                             (connect predecessor step))))
+                       (setf (gethash effect step-table) step)))))
+        (visit effect))
+      (loop for step being the hash-values of step-table
+            do (cond ((null (predecessors step))
+                      (vector-push-extend step first-steps))
+                     ((null (successors step))
+                      (vector-push-extend step final-steps))))
+      (make-instance 'plan
+                     :first-steps first-steps
+                     :final-steps final-steps))))
 
 (defclass basic-executor (executor)
   ((force :initarg :force :initform NIL :accessor force)))

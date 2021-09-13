@@ -158,6 +158,11 @@ do that, though.
                  :version version
                  :hard hard))
 
+(defmethod print-object ((dependency dependency) stream)
+  (print-unreadable-object (dependency stream :type T)
+    (format stream "~s ~s ~s ~@[HARD~]"
+            (effect-type dependency) (parameters dependency) (to-string (version dependency)) (hard-p dependency))))
+
 (defclass effect (versioned-object)
   ((sources :initarg :sources :initform () :accessor sources)
    (parameters :reader parameters)))
@@ -171,6 +176,10 @@ do that, though.
 (defmethod initialize-instance ((effect effect) &key parameters)
   (call-next-method)
   (setf (slot-value effect 'parameters) (normalize-parameters effect parameters)))
+
+(defmethod print-object ((effect effect) stream)
+  (print-unreadable-object (effect stream :type T)
+    (format stream "~s ~s" (type-of effect) (parameters effect))))
 
 (defmethod add-source ((operation operation) (component component) (effect effect))
   (add-source (type-of operation) component effect))
@@ -195,6 +204,7 @@ do that, though.
 
 (defgeneric in-order-to (effect policy))
 (defgeneric select-source (policy effect sources))
+(defgeneric select-effect-set (policy sets))
 (defgeneric compute-plan (effect policy))
 (defgeneric make-operation (operation component effect policy))
 
@@ -232,6 +242,10 @@ do that, though.
 (defgeneric execute (plan/step executor))
 (defgeneric effect-realized-p (effect executor))
 (defgeneric connect (from to))
+
+(defmethod print-object ((step step) stream)
+  (print-unreadable-object (step stream :type T)
+    (format stream "~s ~s" (type-of (operation step)) (type-of (component step)))))
 
 (defmethod execute ((step step) (executor executor))
   (unless (effect-realized-p (effect step) executor)

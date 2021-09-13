@@ -36,7 +36,8 @@ Author: Nicolas Hafner <shinmera@tymoon.eu>
 (defmethod dependencies ((op load-fasl-op) (c lisp-file))
   (list (depend 'compile-effect c)))
 
-(let* ((c0 (make-instance 'lisp-file))
-       (c1 (make-instance 'lisp-file :depends-on (list c0))))
-  (compute-plan (find-effect *database* 'load-effect c1 (parse-constraint T))
-                (make-instance 'basic-policy)))
+(defun run-test ()
+  (let* ((c0 (make-instance 'lisp-file))
+         (c1 (make-instance 'lisp-file :depends-on (list c0))))
+    (compute-plan (find-effect *database* 'load-effect c1 (parse-constraint T))
+                  (make-instance 'basic-policy))))
