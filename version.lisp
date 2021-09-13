@@ -130,5 +130,12 @@
   (make-instance 'separated-version :value version))
 
 (defclass versioned-object ()
-  ((version :initarg :version :initform *unknown-version* :accessor version)))
+  ((version :accessor version)))
 
+(defmethod initialize-instance ((object versioned-object) &key version)
+  (call-next-method)
+  (setf (version object)
+        (typecase version
+          (version version)
+          (null *unknown-version*)
+          (T (parse-version version)))))

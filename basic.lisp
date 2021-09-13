@@ -95,8 +95,9 @@
   (flet ((set> (a b)
            (loop for ae in a
                  for be in b
-                 do (cond ((version= ae be))
-                          ((version< ae be)
+                 do (cond ((eq ae be))
+                          ((version= (version ae) (version be)))
+                          ((version< (version ae) (version be))
                            (return NIL))
                           (T
                            (return T))))))
@@ -160,6 +161,8 @@
                         (do-effects (effect *database* (effect-type dependency) (parameters dependency) (version dependency))
                           (dolist (choice (visit effect))
                             (push choice choices)))
+                        (unless choices
+                          (error "Found no effects to satisfy~%  ~a" dependency))
                         ;; This is where the combinatorial explosion happens
                         (setf depchoices (unify-dependency-sets depchoices choices))))
                     (setf (gethash effect visit)

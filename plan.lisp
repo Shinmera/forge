@@ -58,11 +58,12 @@
   ())
 
 (defmethod make-effect ((operation symbol) (component component))
-  (make-effect (c2mop:class-prototype (find-class operation)) component))
+  (make-effect (c2mop:class-prototype (c2mop:ensure-finalized (find-class operation))) component))
 
 (defmethod ensure-effect (operation (component component) type parameters)
-  (let ((effect (or (find-effect *database* type parameters (version component) NIL)
-                    (register-effect *database* (make-instance type :parameters parameters :version (version component))))))
+  (let* ((version (version component))
+         (effect (or (find-effect *database* type parameters version NIL)
+                     (register-effect *database* (make-instance type :parameters parameters :version version)))))
     (add-source operation component effect)
     effect))
 
