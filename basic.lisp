@@ -226,83 +226,22 @@
             (not (effect-realized-p (effect step) executor)))
     (perform (operation step) (component step))))
 
+(defclass linear-executor (basic-executor)
+  ())
+
+(defun compute-step-sequence (plan)
+  (let ((visit (make-hash-table :test 'eq))
+        (sequence ()))
+    (labels ((visit (step)
+               (unless (gethash step visit)
+                 (dolist (successor (successors step))
+                   (visit successor))
+                 (push step sequence)
+                 (setf (gethash step visit) T))))
+      (loop for step across (first-steps plan)
+            do (visit step))
+      sequence)))
+
 (defmethod execute ((plan plan) (executor basic-executor))
-  (loop for step across (steps plan)
-        do (execute step executor)))
-
-
-#|
-Determining whether there is a valid constellation of versions is
-equivalent to determining if a system of implications has a solution.
-
-Our job is to figure out which of these implications to uphold in order
-for the system to become valid. Once we have reduced it to a set of
-satisfiable constraints, we can then traverse the tree and eagerly
-select from the sources that match the constraints.
-
-Since a source is equivalent to a singular 'thing', we opt to simplify
-the illustration here by bundling each source into a singular entity
-called 'c'. Each of these entities is then modelled as an integer
-that can be constrained, and whose discrete states each have an
-associated implication.
-
-# Single solution problem
-| c0 = 1 ⟹ c1 = 1 & c2 = 1
-| c1 = 1 ⟹ c2 = 1
-| c1 = 2 ⟹ c2 = 2
-| c2 = 1 ⟹ c3 = 1
-| c2 = 2 ⟹ c3 = 2
-| c3 = 1 ⟹ T
-| c3 = 2 ⟹ T
-⟹ c0 = 1 & c1 = 1 & c2 = 1 & c3 = 1
-
-# Multiple solution problem
-| c0 = 1 ⟹ c1 = * & c2 = *
-| c1 = 1 ⟹ c3 = 1
-| c1 = 2 ⟹ c3 = 2
-| c2 = 1 ⟹ c3 = 1
-| c2 = 2 ⟹ c3 = 2
-| c3 = 1 ⟹ T
-| c3 = 2 ⟹ T
-⟹ c0 = 1 & 1 <= c1 <=2 & 1 <= c2 <= 2 & 1 <= c3 <= 2
-^ This is WRONG as we lose important information in
-  the process. Here c1=2&c3=1 would be valid, but in
-  reality it is not.
-... Though does it matter? As long as we properly follow
-    the constraints in phase 2, unifying the known constraints
-    from this with whatever we picked, we end up fine. After
-    all, we have proven that a solution exists here, we now
-    "just" need to pick it, eagerly unifying constraints along
-    the way.
-... Whatever  the case, it does matter during the actual
-    search, so we can't primitively unify during unwinding.
-
-# Single solution problem that requires backtracking
-| c0 = 1 ⟹ c1 = * & c2 = *
-| c1 = 1 ⟹ c3 = 1
-| c1 = 2 ⟹ c3 = 2
-| c2 = 1 ⟹ c3 = 2
-| c2 = 2 ⟹ c3 = 2
-| c3 = 1 ⟹ T
-| c3 = 2 ⟹ T
-⟹ c0 = 1 & c1 = 2 & c2 = 1 & c3 = 2
-
-# Unsatisfiable problem
-| c0 = 1 ⟹ c1 = * & c2 = *
-| c1 = 1 ⟹ c3 = 1
-| c1 = 2 ⟹ c3 = 1
-| c2 = 1 ⟹ c3 = 2
-| c2 = 2 ⟹ c3 = 2
-| c3 = 1 ⟹ T
-| c3 = 2 ⟹ T
-⟹ NIL
-
-Traverse depth-first, marking nodes along the way tentative to
-detect cycles. Then, on unwind start unifying constraints. if
-we have multiple applicable dependencies, unify into a single
-set of OR-ed branches. Should that set ever become empty, we
-have an unsatisfiable branch. If the empty set arrives at
-the top node, the whole solution cannot be solved.
-
-|#
-
+  (dolist (step (compute-step-sequence plan))
+    (execute step executor)))
