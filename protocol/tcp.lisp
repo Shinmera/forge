@@ -8,7 +8,7 @@
   (:use #:cl)
   (:local-nicknames
    (#:protocol #:org.shirakumo.forge.protocol)
-   (#:socket #:org.shirakumo.forge.support.socket))
+   (#:socket #:org.shirakumo.forge.support))
   (:export
    #:DEFAULT-PORT
    #:host
@@ -40,18 +40,18 @@
 (defmethod protocol:alive-p ((connection connection))
   (not (null (socket connection))))
 
-(defmethod protocol:close ((connection connection))
-  (ignore-errors (close (socket connection)))
+(defmethod close ((connection connection) &key abort)
+  (ignore-errors (close (socket connection) :abort abort))
   (setf (socket connection) NIL))
 
 (defclass client-connection (connection protocol:client-connection) ())
 
-(defmethod protocl:receive ((connection client-connection) &key timeout)
-  ;; FIXME: handle timeout
-  (protocol:decode-message (socket connection)))
+(defmethod protocol:receive ((connection client-connection) &key timeout)
+  (protocol:with-timeout timeout
+    (protocol:decode-message T (socket connection))))
 
-(defmethod protocol:receive (message (connection client-connection))
-  (protocol:encode-message (socket connection)))
+(defmethod protocol:send (message (connection client-connection))
+  (protocol:encode-message message (socket connection)))
 
 (defclass server-connection (connection protocol:server-connection)
   ((connections :initform () :accessor connections)))

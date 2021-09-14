@@ -36,7 +36,7 @@
          (dpb bits (byte ,size 0)
               (if (logbitp ,(1- size) bits) -1 0))))))
 
-;; FIXME: circularity?
+;; FIXME: circularity, references
 
 (define-binary-accessor 8)
 (define-binary-accessor 16)

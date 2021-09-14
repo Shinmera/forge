@@ -37,10 +37,6 @@
         (protocol:connect host :timeout 1.0)
         host)))
 
-(defmethod launch-server ((method (eql :fork)) &key)
-  ;; TODO: self-forking
-  )
-
 (defmethod launch-server ((method (eql :launch-self)) &key)
   ;; TODO: self-launching
   )
@@ -56,13 +52,14 @@
 (defun start (&key (address "127.0.0.1")
                    (port TCP:DEFAULT-PORT)
                    (timeout 1.0)
+                   host
                    (if-unavailable :launch)
                    (launch-method :binary)
                    (launch-arguments ()))
   (when (connected-p)
     (error 'already-connected :connection *forge-connection*))
   (support:with-retry-restart ()
-    (or (protocol:connect (make-instance 'tcp:host :address address :port port) :timeout timeout)
+    (or (protocol:connect (or host (make-instance 'tcp:host :address address :port port)) :timeout timeout)
         (ecase if-unavailable
           ((NIL)
            NIL)

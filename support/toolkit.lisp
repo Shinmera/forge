@@ -30,6 +30,11 @@
                             (when (and ,v (not (equal ,v "")))
                               ,v))))))
 
+(defun call (package name &rest args)
+  (apply (or (find-symbol (string name) package)
+             (error "No symbol named ~s found in ~s." name package))
+         args))
+
 (defgeneric generic< (a b)
   (:method ((a real) (b real))
     (< a b))

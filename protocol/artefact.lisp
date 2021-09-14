@@ -6,14 +6,20 @@
 
 (in-package #:org.shirakumo.forge.protocol)
 
-(defclass artefact () ())
-(defclass side-effect-artefact (artefact) ())
-(defclass input-artefact (artefact) (input))
-(defclass output-artefact (artefact) (output))
-(defclass file-artefact (artefact) ())
+(defclass artefact ()
+  ((id :initarg :id :reader id)))
 
-(defclass build-artefact (command) (artefact args))
-(defclass check-artefact (command) (artefact))
-(defclass retrieve-artefact (command) (artefact))
-(defclass store-artefact (command) (artefact))
-(defclass query-artefacts (command) (query))
+(defclass evaluate (command)
+  ((form :initarg :form :reader form)))
+
+(defclass check-artefact (command)
+  (artefact))
+
+(defclass retrieve-artefact (command)
+  (artefact))
+
+(defclass store-artefact (command)
+  (artefact))
+
+(defclass query-artefacts (command)
+  (query))
