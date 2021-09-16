@@ -34,6 +34,34 @@
 (defclass command (message) ())
 (defclass exit (command) ())
 
+(defclass eval-request (command)
+  ((id :initarg :id :initform 0 :reader id)
+   (form :initarg :form :initform (error "FORM required") :reader form)))
+
+(defclass return-message (message)
+  ((id :initarg :id :initform (error "ID required") :reader id)
+   (value :initarg :value :initform (error "VALUE required") :reader value)))
+
+(defclass error-message (message)
+  ((id :initarg :id :initform (error "ID required") :reader id)
+   (condition-type :initarg :condition-type :initform (error "CONDITION-TYPE") :reader condition-type)
+   (arguments :initarg :arguments :initform () :reader arguments)
+   (report :initarg :report :initform NIL :reader report)))
+
+(defmethod arguments (error)
+  ())
+
+(defmethod handle ((request eval-request) (connection connection))
+  (handler-case
+      (let ((values (multiple-value-list (eval (form request)))))
+        (send (make-instance 'return-message :id (id request) :value values) connection))
+    (error (e)
+      (send (make-instance 'error-message :id (id request)
+                                          :condition-type (type-of e)
+                                          :condition-arguments (arguments e)
+                                          :report (princ-to-string e))
+            connection))))
+
 (defgeneric encode-message (message stream))
 (defgeneric decode-message (type stream))
 

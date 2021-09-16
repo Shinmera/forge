@@ -16,7 +16,6 @@
   :serial T
   :components ((:file "package")
                (:file "communication")
-               (:file "artefact")
                (:file "in-process")
                (:file "binary"))
   :depends-on ())

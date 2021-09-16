@@ -269,3 +269,7 @@
   (with-standard-io-syntax (read-from-string (decode (encoding-type-id 'string)))))
 
 ;; What we can't do: functions, readtables, restarts.
+
+(define-slot-coder eval-request id form)
+(define-slot-coder return-message id value)
+(define-slot-coder error-message id condition-type arguments report)
