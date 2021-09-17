@@ -163,6 +163,9 @@
    (predecessors :initarg :predecessors :initform () :accessor predecessors)
    (successors :initarg :successors :initform () :accessor successors)))
 
+(defclass compound-step (step)
+  ((inner-effect :initarg :inner-effect :initform (support:arg! :inner-effect) :reader inner-effect)))
+
 (defgeneric execute (plan/step executor))
 (defgeneric effect-realized-p (effect executor))
 (defgeneric connect (from to))
@@ -181,3 +184,7 @@
 (defmethod connect ((from step) (to step))
   (pushnew to (successors from))
   (pushnew from (predecessors to)))
+
+(defmethod disconnect ((from step) (to step))
+  (setf (successors from) (delete to (successors from)))
+  (setf (predecessors to) (delete from (predecessors to))))

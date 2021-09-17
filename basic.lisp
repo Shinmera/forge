@@ -177,9 +177,7 @@
     ;;       our set. If so, we pull their steps in. Once we have constructed steps for each effect, we can then
     ;;       figure out the head and tail steps and construct the actual plan object.
     (let ((effects (select-effect-set policy (gethash effect visit)))
-          (step-table (make-hash-table :test 'eq))
-          (first-steps (make-array 0 :adjustable T :fill-pointer T))
-          (final-steps (make-array 0 :adjustable T :fill-pointer T)))
+          (step-table (make-hash-table :test 'eq)))
       (labels ((find-effect (dependency)
                  ;; FIXME: This seems slow as balls? Surely there's a better way...
                  (let ((type (effect-type dependency))
@@ -212,14 +210,39 @@
                              (connect predecessor step))))
                        (setf (gethash effect step-table) step)))))
         (visit effect))
-      (loop for step being the hash-values of step-table
-            do (cond ((null (predecessors step))
-                      (vector-push-extend step first-steps))
-                     ((null (successors step))
-                      (vector-push-extend step final-steps))))
-      (make-instance 'plan
-                     :first-steps first-steps
-                     :final-steps final-steps))))
+      ;; Note: Now we do the additional step of "expanding" compound steps to allow broad-phasing of plans. We
+      ;;       then replace the original broad steps by tying up the successors and predecessors.
+      (loop for key being the hash-keys of step-table
+            for step being the hash-values of step-table
+            do (when (typep step 'compound-step)
+                 ;; Unhook the step from the plan
+                 (remhash key step-table)
+                 (dolist (predecessor (predecessors step))
+                   (setf (successors predecessor) (delete step (successors predecessor))))
+                 (dolist (successor (successors step))
+                   (setf (predecessors successor) (delete step (predecessors successor))))
+                 ;; Compute the inner plan and tie the steps together
+                 (let ((plan (compute-plan (inner-effect step) policy)))
+                   (loop for first across (first-steps plan)
+                         do (setf (gethash first step-table) first)
+                            (dolist (predecessor (predecessors step))
+                              (connect predecessor first)))
+                   (loop for final across (final-steps plan)
+                         do (setf (gethash final step-table) final)
+                            (dolist (successor (successors step))
+                              (connect final successor))))))
+      ;; Note: Finally we figure out the heads and tails of the whole plan by searching through all known steps
+      ;;       for ones without any successors or predecessors. This concludes the full plan.
+      (let ((first-steps (make-array 0 :adjustable T :fill-pointer T))
+            (final-steps (make-array 0 :adjustable T :fill-pointer T)))
+        (loop for step being the hash-values of step-table
+              do (cond ((null (predecessors step))
+                        (vector-push-extend step first-steps))
+                       ((null (successors step))
+                        (vector-push-extend step final-steps))))
+        (make-instance 'plan
+                       :first-steps first-steps
+                       :final-steps final-steps)))))
 
 (defclass basic-executor (executor)
   ((force :initarg :force :initform NIL :accessor force)))
