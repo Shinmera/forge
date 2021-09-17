@@ -23,10 +23,25 @@
    #:server-connection
    #:connections
    #:message
+   #:id
    #:connection-established
    #:connection-lost
    #:command
    #:exit
+   #:ok
+   #:ping
+   #:pong
+   #:error-message
+   #:condition-type
+   #:arguments
+   #:report
+   #:eval-request
+   #:form
+   #:return-message
+   #:value
+   #:file-transfer
+   #:path
+   #:payload
    #:encode-message
    #:decode-message
    #:command-loop

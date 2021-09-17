@@ -8,6 +8,10 @@
 
 (defvar *timeout* NIL)
 (defvar *version* ())
+(defvar *id-counter* 0)
+
+(defun next-id ()
+  (incf *id-counter*))
 
 (defmacro with-timeout (timeout &body body)
   `(let ((*timeout* ,timeout))
@@ -25,42 +29,66 @@
 (defgeneric receive (connection &key timeout)) ; => MESSAGE | NIL
 (defgeneric handle (message connection))
 
+(defun send! (connection type &rest args)
+  (send (apply #'make-instance type args) connection))
+
+(define-compiler-macro send! (connection type &rest args)
+  `(send (make-instance ,type ,@args) ,connection))
+
+(defun reply! (connection message type &rest args)
+  (send (apply #'make-instance type :id (id message) args) connection))
+
+(define-compiler-macro reply! (connection message type &rest args)
+  `(send (make-instance ,type :id (id ,message) ,@args) ,connection))
+
 (defclass client-connection (connection) ())
 (defclass server-connection (connection) ())
 
-(defclass message () ())
+(defclass message ()
+  ((id :initarg :id :initform (next-id) :reader id)))
+
 (defclass connection-established (message) ())
 (defclass connection-lost (message) ())
 (defclass command (message) ())
 (defclass exit (command) ())
+(defclass ok (message) ())
 
-(defclass eval-request (command)
-  ((id :initarg :id :initform 0 :reader id)
-   (form :initarg :form :initform (error "FORM required") :reader form)))
+(defclass ping (message)
+  ((clock :initform (get-universal-time) :reader clock)))
 
-(defclass return-message (message)
-  ((id :initarg :id :initform (error "ID required") :reader id)
-   (value :initarg :value :initform (error "VALUE required") :reader value)))
+(defclass pong (message)
+  ((clock :initform (get-universal-time) :reader clock)))
 
 (defclass error-message (message)
-  ((id :initarg :id :initform (error "ID required") :reader id)
-   (condition-type :initarg :condition-type :initform (error "CONDITION-TYPE") :reader condition-type)
+  ((condition-type :initarg :condition-type :initform (support:arg! :condition-type) :reader condition-type)
    (arguments :initarg :arguments :initform () :reader arguments)
    (report :initarg :report :initform NIL :reader report)))
+
+(defclass eval-request (command)
+  ((form :initarg :form :initform (support:arg! :form) :reader form)))
+
+(defclass return-message (message)
+  ((value :initarg :value :initform (support:arg! :value) :reader value)))
 
 (defmethod arguments (error)
   ())
 
 (defmethod handle ((request eval-request) (connection connection))
-  (handler-case
-      (let ((values (multiple-value-list (eval (form request)))))
-        (send (make-instance 'return-message :id (id request) :value values) connection))
-    (error (e)
-      (send (make-instance 'error-message :id (id request)
-                                          :condition-type (type-of e)
-                                          :condition-arguments (arguments e)
-                                          :report (princ-to-string e))
-            connection))))
+  (let ((values (multiple-value-list (eval (form request)))))
+    (reply! connection request 'return-message :value values)))
+
+(defclass file-transfer (message)
+  ((path :initarg :path :initform (support:arg! :path) :reader path)
+   (payload :initarg :payload :initform (support:arg! :payload) :reader payload)))
+
+(defmethod handle ((message file-transfer) (connection connection))
+  ;; FIXME: Streaming the file payload instead of first loading it into memory would be
+  ;;        far better.
+  (with-open-file (stream (path message) :direction :output
+                                         :if-exists :supersede
+                                         :element-type '(unsigned-byte 8))
+    (write-sequence (payload message) stream)
+    (reply! connection message 'ok)))
 
 (defgeneric encode-message (message stream))
 (defgeneric decode-message (type stream))
@@ -73,7 +101,13 @@
                  (handle (make-instance 'connection-lost) connection)
                  (invoke-restart 'exit-command-loop)))))
       (loop (restart-case
-                (handle (receive) connection)
+                (let ((message (receive)))
+                  (handler-case (handle message connection)
+                    (error (e)
+                      (reply! connection message 'error-message
+                              :condition-type (type-of e)
+                              :condition-arguments (arguments e)
+                              :report (princ-to-string e)))))
               (reconnect ()
                 :report (lambda (s) "Reconnect to ~a" (host connection))
                 ;; FIXME: What to do if reconnection fails?

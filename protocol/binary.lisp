@@ -79,7 +79,7 @@
              (declare (ignorable #'decode))
              ,decoder))))))
 
-(defmacro define-slot-coder (class &rest slots)
+(defmacro define-slot-coder (class slots)
   `(define-encoding ,class (value stream)
      (progn
        ,@(loop for slot in slots
@@ -270,6 +270,13 @@
 
 ;; What we can't do: functions, readtables, restarts.
 
-(define-slot-coder eval-request id form)
-(define-slot-coder return-message id value)
-(define-slot-coder error-message id condition-type arguments report)
+(define-slot-coder exit (id))
+(define-slot-coder ok (id))
+(define-slot-coder ping (id clock))
+(define-slot-coder pong (id clock))
+(define-slot-coder error-message (id condition-type arguments report))
+(define-slot-coder eval-request (id form))
+(define-slot-coder return-message (id value))
+(define-slot-coder eval-request (id form))
+(define-slot-coder return-message (id value))
+(define-slot-coder file-transfer (id path payload))
