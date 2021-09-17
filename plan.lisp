@@ -37,9 +37,10 @@
 (defclass component (versioned-object)
   ())
 
-(defgeneric supported-operations (component))
+(defgeneric supported-operations (component)
+  (:method-combination append))
 
-(defmethod supported-operations ((component component))
+(defmethod supported-operations append ((component component))
   ())
 
 (defmethod initialize-instance :after ((component component) &key)
@@ -49,12 +50,13 @@
 (defclass operation ()
   ())
 
-(defgeneric dependencies (operation component))
-(defgeneric perform (operation component))
+(defgeneric dependencies (operation component)
+  (:method-combination append))
+(defgeneric perform (operation component client))
 (defgeneric make-effect (operation component))
 (defgeneric ensure-effect (operation component type parameters))
 
-(defmethod dependencies ((operation operation) (component component))
+(defmethod dependencies append ((operation operation) (component component))
   ())
 
 (defmethod make-effect ((operation symbol) (component component))
