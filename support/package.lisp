@@ -8,6 +8,11 @@
   (:use #:cl)
   ;; toolkit.lisp
   (:export
+   #:forge-condition
+   #:define-condition*
+   #:argument-missing
+   #:arg!
+   #:implementation-unsupported
    #:with-retry-restart
    #:try-files
    #:or*

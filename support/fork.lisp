@@ -10,7 +10,7 @@
   #+sbcl
   (sb-posix:fork)
   #-sbcl
-  (error "Forking unsupported"))
+  (error 'implementation-unsupported))
 
 (defun pipe ()
   #+sbcl
@@ -18,4 +18,6 @@
     (values (sb-sys:make-fd-stream a :input NIL :output t
                                      :element-type '(unsigned-byte 8))
             (sb-sys:make-fd-stream b :input T :output NIL
-                                     :element-type '(unsigned-byte 8)))))
+                                     :element-type '(unsigned-byte 8))))
+  #-sbcl
+  (error 'implementation-unsupported))

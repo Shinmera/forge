@@ -36,18 +36,18 @@
                                   :read-timeout NIL
                                   :timeout 5)
   #-(or allegro abcl ccl clasp ecl sbcl mkcl clisp cmucl scl lispworks)
-  (error "Your implementation is not supported."))
+  (error 'implementation-unsupported))
 
 (defun listen-tcp (host port)
   #+(or clasp ecl sbcl mkcl)
   (let* ((endpoint (sb-bsd-sockets:host-ent-address (sb-bsd-sockets:get-host-by-name host)))
          (socket (make-instance 'sb-bsd-sockets:inet-socket :protocol :tcp :type :stream)))
     (setf (sb-bsd-sockets:sockopt-reuse-address socket) T)
-    (sb-bsd-sockets:socket-bind server endpoint port)
-    (sb-bsd-sockets:socket-listen server 16)
+    (sb-bsd-sockets:socket-bind socket endpoint port)
+    (sb-bsd-sockets:socket-listen socket 16)
     socket)
   #-(or clasp ecl sbcl mkcl)
-  (error "Your implementation is not supported."))
+  (error 'implementation-unsupported))
 
 (defun accept-tcp (socket &key timeout (element-type '(unsigned-byte 8)))
   ;; FIXME: Handle timeout
@@ -55,4 +55,6 @@
   (sb-bsd-sockets:socket-make-stream (sb-bsd-sockets:socket-accept socket)
                                      :element-type element-type
                                      :input T :output T
-                                     :buffering :full))
+                                     :buffering :full)
+  #-(or clasp ecl sbcl mkcl)
+  (error 'implementation-unsupported))

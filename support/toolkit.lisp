@@ -6,6 +6,34 @@
 
 (in-package #:org.shirakumo.forge.support)
 
+(define-condition forge-condition (condition)
+  ())
+
+(defmacro define-condition* (name superclasses slots report)
+  `(define-condition ,name (,@superclasses forge-condition)
+     ,(loop for slot in slots
+            collect (if (listp slot)
+                        slot
+                        (list slot :initarg (intern (string slot) "KEYWORD")
+                                   :initform `(arg! ,(intern (string slot) "KEYWORD"))
+                                   :reader slot)))
+     (:report (lambda (c s)
+                (declare (ignorable c))
+                (format s ,(first report)
+                        ,@(loop for arg in (rest report)
+                                collect (if (symbolp arg)
+                                            `(,arg c)
+                                            `((lambda (condition) ,arg) c))))))))
+
+(define-condition* argument-missing (error)
+  (argument) ("The argument~%  ~s~%was required, but not given." argument))
+
+(defun arg! (argument)
+  (error 'argument-missing :argument argument))
+
+(define-condition* implementation-unsupported (error)
+  () ("Your implementation is not supported or does not support a required feature for Forge."))
+
 (defmacro with-retry-restart ((&optional (name 'retry) (format-string "Retry") &rest format-args) &body body)
   (let ((block (gensym "BLOCK"))
         (retry (gensym "RETRY")))

@@ -68,8 +68,8 @@
     effect))
 
 (defclass dependency ()
-  ((effect-type :initarg :effect-type :reader effect-type)
-   (parameters :initarg :parameters :reader parameters)
+  ((effect-type :initarg :effect-type :initform (support:arg! :effect-type) :reader effect-type)
+   (parameters :initarg :parameters :initform (support:arg! :parameters) :reader parameters)
    (version :initarg :version :initform (parse-constraint T) :reader version)
    (hard :initarg :hard :initform T :reader hard-p)))
 
@@ -155,9 +155,9 @@
                  :effect effect))
 
 (defclass step ()
-  ((operation :initarg :operation :reader operation)
-   (component :initarg :component :reader component)
-   (effect :initarg :effect :reader effect)
+  ((operation :initarg :operation :initform (support:arg! :operation) :reader operation)
+   (component :initarg :component :initform (support:arg! :compoenent) :reader component)
+   (effect :initarg :effect :initform (support:arg! :effect) :reader effect)
    (predecessors :initarg :predecessors :initform () :accessor predecessors)
    (successors :initarg :successors :initform () :accessor successors)))
 
