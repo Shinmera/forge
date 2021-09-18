@@ -4,15 +4,15 @@
  Author: Nicolas Hafner <shinmera@tymoon.eu>
 |#
 
-(defpackage #:org.shirakumo.forge.protocol.in-process
+(defpackage #:org.shirakumo.forge.communication.in-process
   (:use #:cl)
   (:local-nicknames
-   (#:protocol #:org.shirakumo.forge.protocol))
+   (#:communication #:org.shirakumo.forge.communication))
   (:export
    #:host))
-(in-package #:org.shirakumo.forge.protocol.in-process)
+(in-package #:org.shirakumo.forge.communication.in-process)
 
-(defclass host (protocol:host protocol:client-connection protocol:server-connection)
+(defclass host (communication:host communication:client-connection communication:server-connection)
   ((state :initform :closed :accessor state)
    (queue :reader queue)))
 
@@ -20,7 +20,7 @@
   (let ((sentinel (cons NIL NIL))))
   (setf (slot-value host 'queue) (cons sentinel sentinel)))
 
-(defmethod protocol:connect ((host host) &key timeout)
+(defmethod communication:connect ((host host) &key timeout)
   (declare (ignore timeout))
   (ecase (state host)
     (:serving
@@ -29,7 +29,7 @@
     (:connected
      host)))
 
-(defmethod protocol:serve ((host host) &key timeout)
+(defmethod communication:serve ((host host) &key timeout)
   (declare (ignore timeout))
   (ecase (state host)
     (:closed
@@ -38,36 +38,36 @@
     ((:serving :connected)
      host)))
 
-(defmethod protocol:host ((host host))
+(defmethod communication:host ((host host))
   host)
 
-(defmethod protocol:connections ((host host))
+(defmethod communication:connections ((host host))
   (list host))
 
-(defmethod protocol:alive-p ((host host))
+(defmethod communication:alive-p ((host host))
   (not (eql :closed (state host))))
 
 (defmethod close ((host host) &key abort)
   (ecase (state host)
     (:connected
-     (write (make-instance 'protocol:connection-lost :connection host) host)
+     (write (make-instance 'communication:connection-lost :connection host) host)
      (setf (state host) :serving))
     (:serving
      (setf (car (queue host)) NIL)
      (setf (cdr (queue host)) NIL)
      (setf (state host) :closed))))
 
-(defmethod protocol:send (message (host host))
-  (protocol:handle message host))
+(defmethod communication:send (message (host host))
+  (communication:handle message host))
 
-(defmethod protocol:receive ((host host) &key timeout)
+(defmethod communication:receive ((host host) &key timeout)
   (declare (ignore timeout))
   (let ((start (pop (car (queue host)))))
     (unless (car (queue host))
       (setf (cdr (queue host)) NIL))
     start))
 
-(defmethod protocol:handle ((command protocol:exit) (host host))
+(defmethod communication:handle ((command communication:exit) (host host))
   (setf (state host) :closed)
-  (when (find-restart 'protocol:exit-command-loop)
-    (invoke-restart 'protocol:exit-command-loop)))
+  (when (find-restart 'communication:exit-command-loop)
+    (invoke-restart 'communication:exit-command-loop)))

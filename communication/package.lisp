@@ -4,7 +4,7 @@
  Author: Nicolas Hafner <shinmera@tymoon.eu>
 |#
 
-(defpackage #:org.shirakumo.forge.protocol
+(defpackage #:org.shirakumo.forge.communication
   (:use #:cl)
   ;; communication.lisp
   (:export

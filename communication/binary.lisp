@@ -4,7 +4,7 @@
  Author: Nicolas Hafner <shinmera@tymoon.eu>
 |#
 
-(in-package #:org.shirakumo.forge.protocol)
+(in-package #:org.shirakumo.forge.communication)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defvar *encoding-type-id-map* (make-hash-table :test 'eq))

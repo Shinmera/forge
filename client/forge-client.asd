@@ -17,5 +17,5 @@
   :components ((:file "package")
                (:file "client"))
   :depends-on (:forge-support
-               :forge-protocol
+               :forge-communication
                :forge-tcp))

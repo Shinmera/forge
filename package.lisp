@@ -9,5 +9,6 @@
   (:shadow #:step)
   (:local-nicknames
    (#:support #:org.shirakumo.forge.support)
-   (#:protocol #:org.shirakumo.forge.protocol))
+   (#:communication #:org.shirakumo.forge.communication)
+   (#:tcp #:org.shirakumo.forge.communication.tcp))
   (:export))

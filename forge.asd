@@ -20,5 +20,6 @@
                (:file "plan")
                (:file "basic"))
   :depends-on (:forge-support
-               :forge-protocol
+               :forge-communication
+               :forge-tcp
                :closer-mop))

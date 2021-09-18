@@ -9,6 +9,6 @@
   (:export)
   (:local-nicknames
    (#:support #:org.shirakumo.forge.support)
-   (#:tcp #:org.shirakumo.forge.protocol.tcp)
-   (#:in-process #:org.shirakumo.forge.protocol.in-process)
-   (#:protocol #:org.shirakumo.forge.protocol)))
+   (#:tcp #:org.shirakumo.forge.communication.tcp)
+   (#:in-process #:org.shirakumo.forge.communication.in-process)
+   (#:communication #:org.shirakumo.forge.communication)))

@@ -4,7 +4,7 @@
  Author: Nicolas Hafner <shinmera@tymoon.eu>
 |#
 
-(in-package #:org.shirakumo.forge.protocol)
+(in-package #:org.shirakumo.forge.communication)
 
 (defvar *timeout* NIL)
 (defvar *version* ())

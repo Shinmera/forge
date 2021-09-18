@@ -4,18 +4,16 @@
  Author: Nicolas Hafner <shinmera@tymoon.eu>
 |#
 
-(asdf:defsystem forge-protocol
+(asdf:defsystem forge-tcp
   :version "1.0.0"
   :license "zlib"
   :author "Nicolas Hafner <shinmera@tymoon.eu>"
   :maintainer "Nicolas Hafner <shinmera@tymoon.eu>"
-  :description ""
+  :description "TCP client-server protocol for forge."
   :homepage "https://shinmera.github.io/forge"
   :bug-tracker "https://github.com/Shinmera/forge/issues"
   :source-control (:git "https://github.com/Shinmera/forge.git")
   :serial T
-  :components ((:file "package")
-               (:file "communication")
-               (:file "in-process")
-               (:file "binary"))
-  :depends-on ())
+  :components ((:file "tcp"))
+  :depends-on (:forge-communication
+               :forge-support))

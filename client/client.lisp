@@ -34,7 +34,7 @@
   (setf *forge-process* (support:launch *forge-binary* (list "launch" address port)))
   (let ((host (make-instance 'tcp:host :address address :port port)))
     (if connect
-        (protocol:connect host :timeout 1.0)
+        (communication:connect host :timeout 1.0)
         host)))
 
 (defmethod launch-server ((method (eql :launch-self)) &key)
@@ -47,7 +47,7 @@
              (asdf:load-system :forge-server)
              (load-server))
   #-asdf (load-server)
-  (protocol:connect (protocol:serve (make-instance 'in-process:host))))
+  (communication:connect (communication:serve (make-instance 'in-process:host))))
 
 (defun start (&key (address "127.0.0.1")
                    (port TCP:DEFAULT-PORT)
@@ -59,7 +59,7 @@
   (when (connected-p)
     (error 'already-connected :connection *forge-connection*))
   (support:with-retry-restart ()
-    (or (protocol:connect (or host (make-instance 'tcp:host :address address :port port)) :timeout timeout)
+    (or (communication:connect (or host (make-instance 'tcp:host :address address :port port)) :timeout timeout)
         (ecase if-unavailable
           ((NIL)
            NIL)
@@ -72,13 +72,13 @@
 
 (defun stop ()
   (when (connected-p)
-    (protocol:exit *forge-connection*)
+    (communication:exit *forge-connection*)
     (setf *forge-connection* NIL)))
 
 (defun connected-p ()
-  (and *forge-connection* (protocol:alive-p *forge-connection*)))
+  (and *forge-connection* (communication:alive-p *forge-connection*)))
 
 (defun dedicate (&rest start-args)
   (unless (connected-p)
     (apply #'start start-args))
-  (protocol:command-loop *forge-connection*))
+  (communication:command-loop *forge-connection*))
