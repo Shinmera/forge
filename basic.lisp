@@ -58,6 +58,29 @@
       (error "Different effect with same parameters and version already exists!"))
     (setf (gethash version effects) effect)))
 
+(defclass file-component (component)
+  ((file :initarg :file :iinitform (error "FILE required") :accessor file)))
+
+(defclass file-operation (operation)
+  ())
+
+(defmethod dependencies append ((operation file-operation) (component file-component))
+  (list (depend 'ensure-file (file component) :version (version component))))
+
+(defclass file-output-operation (operation))
+
+(defgeneric output-file (operation component))
+
+(defmethod output-file ((operation symbol) component)
+  (output-file (prototype operation) component))
+
+(defclass ensure-file (operation)
+  ())
+
+(defmethod perform ((operation ensure-file) (component file-component) client)
+  (unless (probe-artefact (file component) client)
+    (send client (file component) #'identity)))
+
 (defclass parameter-plist-effect (effect)
   ())
 

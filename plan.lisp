@@ -60,7 +60,7 @@
   ())
 
 (defmethod make-effect ((operation symbol) (component component))
-  (make-effect (c2mop:class-prototype (c2mop:ensure-finalized (find-class operation))) component))
+  (make-effect (prototype operation) component))
 
 (defmethod ensure-effect (operation (component component) type parameters)
   (let* ((version (version component))
@@ -114,7 +114,7 @@
     source))
 
 (defmethod normalize-parameters ((effect symbol) parameters)
-  (normalize-parameters (c2mop:class-prototype (find-class effect)) parameters))
+  (normalize-parameters (prototype effect) parameters))
 
 (defmethod normalize-parameters ((effect effect) parameters)
   parameters)
@@ -161,25 +161,28 @@
    (component :initarg :component :initform (support:arg! :compoenent) :reader component)
    (effect :initarg :effect :initform (support:arg! :effect) :reader effect)
    (predecessors :initarg :predecessors :initform () :accessor predecessors)
-   (successors :initarg :successors :initform () :accessor successors)))
+   (successors :initarg :successors :initform () :accessor successors)
+   (complete-p :initform NIL :accessor complete-p)))
 
 (defclass compound-step (step)
   ((inner-effect :initarg :inner-effect :initform (support:arg! :inner-effect) :reader inner-effect)))
 
 (defgeneric execute (plan/step executor))
 (defgeneric effect-realized-p (effect executor))
+(defgeneric effect-needed-p (effect executor))
 (defgeneric connect (from to))
 
 (defmethod print-object ((step step) stream)
   (print-unreadable-object (step stream :type T)
     (format stream "~s ~s" (type-of (operation step)) (type-of (component step)))))
 
-(defmethod execute ((step step) (executor executor))
-  (unless (effect-realized-p (effect step) executor)
-    (perform (operation step) (component step))))
-
 (defmethod effect-realized-p ((effect effect) (executor executor))
   NIL)
+
+(defmethod effect-needed-p ((effect effect) (executor executor))
+  (or (not (effect-realized-p effect executor))
+      (loop for predecessor in (predecessors effect)
+            thereis (effect-needed-p effect executor))))
 
 (defmethod connect ((from step) (to step))
   (pushnew to (successors from))

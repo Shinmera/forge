@@ -4,7 +4,7 @@
  Author: Nicolas Hafner <shinmera@tymoon.eu>
 |#
 
-(asdf:defsystem forge
+(asdf:defsystem forge-module-lisp
   :version "1.0.0"
   :license "zlib"
   :author "Nicolas Hafner <shinmera@tymoon.eu>"
@@ -14,13 +14,5 @@
   :bug-tracker "https://github.com/Shinmera/forge/issues"
   :source-control (:git "https://github.com/Shinmera/forge.git")
   :serial T
-  :components ((:file "package")
-               (:file "toolkit")
-               (:file "version")
-               (:file "constraints")
-               (:file "plan")
-               (:file "basic"))
-  :depends-on (:forge-support
-               :forge-communication
-               :forge-tcp
-               :closer-mop))
+  :components ((:file "package"))
+  :depends-on (:forge))

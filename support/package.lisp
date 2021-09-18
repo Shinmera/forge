@@ -17,6 +17,7 @@
    #:try-files
    #:or*
    #:call
+   #:prototype
    #:generic<)
   ;; socket.lisp
   (:export
