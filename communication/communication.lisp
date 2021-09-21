@@ -60,6 +60,9 @@
 (defclass pong (message)
   ((clock :initform (get-universal-time) :reader clock)))
 
+(defmethod handle ((request ping) (connection connection))
+  (reply! connection request 'pong))
+
 (defclass error-message (message)
   ((condition-type :initarg :condition-type :initform (support:arg! :condition-type) :reader condition-type)
    (arguments :initarg :arguments :initform () :reader arguments)
@@ -70,9 +73,6 @@
 
 (defclass return-message (message)
   ((value :initarg :value :initform (support:arg! :value) :reader value)))
-
-(defmethod arguments (error)
-  ())
 
 (defmethod handle ((request eval-request) (connection connection))
   (let ((values (multiple-value-list (eval (form request)))))
@@ -101,7 +101,7 @@
                     (error (e)
                       (reply! connection message 'error-message
                               :condition-type (type-of e)
-                              :condition-arguments (arguments e)
+                              :condition-arguments (support:arguments e)
                               :report (princ-to-string e)))))
               (reconnect ()
                 :report (lambda (s) (format s "Reconnect to ~a" (host connection)))

@@ -9,6 +9,7 @@
   ;; toolkit.lisp
   (:export
    #:forge-condition
+   #:arguments
    #:define-condition*
    #:argument-missing
    #:arg!

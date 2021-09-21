@@ -9,21 +9,37 @@
 (define-condition forge-condition (condition)
   ())
 
+(defgeneric arguments (condition)
+  (:method-combination append))
+
+(defmethod arguments append ((condition condition))
+  ())
+
 (defmacro define-condition* (name superclasses slots report)
-  `(define-condition ,name (,@superclasses forge-condition)
-     ,(loop for slot in slots
-            collect (if (listp slot)
-                        slot
-                        (list slot :initarg (intern (string slot) "KEYWORD")
-                                   :initform `(arg! ,(intern (string slot) "KEYWORD"))
-                                   :reader slot)))
-     (:report (lambda (c s)
-                (declare (ignorable c))
-                (format s ,(first report)
-                        ,@(loop for arg in (rest report)
-                                collect (if (symbolp arg)
-                                            `(,arg c)
-                                            `((lambda (condition) ,arg) c))))))))
+  (let ((slots (loop for slot in slots
+                     collect (if (listp slot)
+                                 slot
+                                 (list slot :initarg (intern (string slot) "KEYWORD")
+                                            :initform `(arg! ,(intern (string slot) "KEYWORD"))
+                                            :reader slot)))))
+    `(progn
+       (define-condition ,name (,@superclasses forge-condition)
+         ,slots
+         (:report (lambda (c s)
+                    (declare (ignorable c))
+                    (format s ,(first report)
+                            ,@(loop for arg in (rest report)
+                                    collect (if (symbolp arg)
+                                                `(,arg c)
+                                                `((lambda (condition) ,arg) c)))))))
+       (defmethod arguments append ((,name ,name))
+         (list ,@(loop for (slot . args) in slots
+                       for reader = (getf args :reader)
+                       for initarg = (getf args :initarg)
+                       when initarg collect initarg
+                       when initarg collect (if reader
+                                                `(,reader ,name)
+                                                `(slot-value ,name ',slot))))))))
 
 (define-condition* argument-missing (error)
   (argument) ("The argument~%  ~s~%was required, but not given." argument))
