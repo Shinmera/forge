@@ -49,6 +49,12 @@
   #-asdf (load-server)
   (communication:connect (communication:serve (make-instance 'in-process:host))))
 
+(defun kill-server ()
+  (stop)
+  (when *forge-process*
+    (support:terminate *forge-process*)
+    (setf *forge-process* NIL)))
+
 (defun start (&key (address "127.0.0.1")
                    (port TCP:DEFAULT-PORT)
                    (timeout 1.0)
@@ -82,3 +88,21 @@
   (unless (connected-p)
     (apply #'start start-args))
   (communication:command-loop *forge-connection*))
+
+(defun forge-package-p (package)
+  (flet ((match (name)
+           (string= #1="ORG.SHIRAKUMO.FORGE" name :end2 (min (length name) (length #1#)))))
+    (or (match (package-name package))
+        (some #'match (package-nicknames package)))))
+
+(defun prune-package (package)
+  (do-symbols (symbol package (delete-package package))
+    (when (eq (symbol-package symbol) package)
+      (makunbound symbol)
+      (fmakunbound symbol)
+      (when (find-class symbol)
+        (setf (find-class symbol) NIL)))))
+
+(defun prune ()
+  (kill-server)
+  (prune-package (remove-if-not #'forge-package-p (list-all-packages))))
