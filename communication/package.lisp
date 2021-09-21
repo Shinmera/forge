@@ -21,6 +21,8 @@
    #:send
    #:receive
    #:handle
+   #:send!
+   #:reply!
    #:client-connection
    #:server-connection
    #:connections
@@ -34,6 +36,7 @@
    #:ping
    #:pong
    #:error-message
+   #:esend
    #:condition-type
    #:arguments
    #:report
@@ -46,7 +49,6 @@
    #:artefact-target
    #:encode-message
    #:decode-message
-   #:command-loop
    #:exit-command-loop)
   ;; binary.lisp
   (:export

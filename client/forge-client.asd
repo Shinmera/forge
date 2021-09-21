@@ -15,6 +15,7 @@
   :source-control (:git "https://github.com/Shinmera/forge.git")
   :serial T
   :components ((:file "package")
+               (:file "server")
                (:file "client"))
   :depends-on (:forge-support
                :forge-communication))

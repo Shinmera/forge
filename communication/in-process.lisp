@@ -46,12 +46,16 @@
 (defmethod communication:alive-p ((host host))
   (not (eql :closed (state host))))
 
+(defmethod communication:handle :before ((message communication:connection-lost) (host host))
+  (close host :abort T))
+
 (defmethod close ((host host) &key abort)
   (declare (ignore abort))
   (ecase (state host)
+    (:closed)
     (:connected
-     (communication:send (make-instance 'communication:connection-lost :connection host) host)
-     (setf (state host) :serving))
+     (setf (state host) :serving)
+     (communication:send (make-instance 'communication:connection-lost :connection host) host))
     (:serving
      (setf (car (queue host)) NIL)
      (setf (cdr (queue host)) NIL)

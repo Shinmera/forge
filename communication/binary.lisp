@@ -300,8 +300,8 @@
             while (< 0 read)
             do (write-sequence buffer stream :end read))))
   (with-open-file (output (artefact-target value) :direction :output
-                                                 :element-type '(unsigned-byte 8)
-                                                 :if-exists :supersede)
+                                                  :element-type '(unsigned-byte 8)
+                                                  :if-exists :supersede)
     (let ((buffer (make-array 4096 :element-type '(unsigned-byte 8))))
       (declare (dynamic-extent buffer))
       (loop for read = (read-sequence buffer stream)

@@ -6,54 +6,19 @@
 
 (in-package #:org.shirakumo.forge.client)
 
-(defvar *forge-binary*
-  #+unix (merge-pathnames ".local/bin/forge" (user-homedir-pathname))
-  #+win32 "forge.exe")
-(defvar *forge-process* NIL)
 (defvar *forge-connection* NIL)
-(defvar *forge-source-root*
-  (let ((this #.(or *compile-file-pathname* *load-pathname*)))
-    (make-pathname :name NIL :type NIL :version NIL
-                   :directory (butlast (pathname-directory this))
-                   :host (pathname-host this)
-                   :device (pathname-device this))))
 
-(defun load-server (&optional (forge-source-root *forge-source-root*))
-  (unless (and (find-package '#:org.shirakumo.forge.server)
-               (find-symbol '#:loaded-p '#:org.shirakumo.forge.server)
-               (symbol-value (find-symbol '#:loaded-p '#:org.shirakumo.forge.server)))
-    (load (support:try-files (merge-pathnames "server/load.fasl" forge-source-root)
-                             (merge-pathnames "server/load.lisp" forge-source-root)
-                             (merge-pathnames "../server/load.fasl" #.*load-pathname*)))))
+(defun log (level message &rest args)
+  (format (ecase level
+            ((:info :error) *error-output*)
+            ((:debug :trace) *debug-io*))
+          "FORGE [~5a] ~?" level message args))
 
-(defgeneric launch-server (method &key connect &allow-other-keys))
-
-(defmethod launch-server ((method (eql :binary)) &key (binary *forge-binary*) (address "127.0.0.1") (port TCP:DEFAULT-PORT) connect)
-  (when (and *forge-process* (null (support:exit-code *forge-process*)))
-    (error 'process-already-running :process *forge-process*))
-  (setf *forge-process* (support:launch *forge-binary* (list "launch" address port)))
-  (let ((host (make-instance 'tcp:host :address address :port port)))
-    (if connect
-        (communication:connect host :timeout 1.0)
-        host)))
-
-(defmethod launch-server ((method (eql :launch-self)) &key)
-  ;; TODO: self-launching
-  )
-
-(defmethod launch-server ((method (eql :in-process)) &key connect)
-  (declare (ignore connect))
-  #+asdf (if (asdf:find-system :forge-server)
-             (asdf:load-system :forge-server)
-             (load-server))
-  #-asdf (load-server)
-  (communication:connect (communication:serve (make-instance 'in-process:host))))
-
-(defun kill-server ()
-  (stop)
-  (when *forge-process*
-    (support:terminate *forge-process*)
-    (setf *forge-process* NIL)))
+(defun try-connect (host &key timeout)
+  (handler-case (communication:connect host :timeout timeout)
+    (error (e)
+      (log :error "Failed to connect to~%  ~a~%~a" host e)
+      NIL)))
 
 (defun start (&key (address "127.0.0.1")
                    (port TCP:DEFAULT-PORT)
@@ -65,16 +30,18 @@
   (when (connected-p)
     (error 'already-connected :connection *forge-connection*))
   (support:with-retry-restart ()
-    (or (communication:connect (or host (make-instance 'tcp:host :address address :port port)) :timeout timeout)
-        (ecase if-unavailable
-          ((NIL)
-           NIL)
-          (:error
-           (error 'connection-failed :address address))
-          (:launch
-           (apply #'launch-server launch-method
-                  :address address :port port :connect T
-                  launch-arguments))))))
+    (let ((host (or host (make-instance 'tcp:host :address address :port port))))
+      (setf *forge-connection*
+            (or (try-connect host :timeout timeout)
+                (ecase if-unavailable
+                  ((NIL)
+                   NIL)
+                  (:error
+                   (error 'connection-failed :address address))
+                  (:launch
+                   (setf connection (apply #'launch-server launch-method
+                                           :address address :port port :connect T
+                                           launch-arguments)))))))))
 
 (defun stop ()
   (when (connected-p)
@@ -84,10 +51,51 @@
 (defun connected-p ()
   (and *forge-connection* (communication:alive-p *forge-connection*)))
 
+(defun handle-reconnect (connection &key (on-reconnect-failure :sleep))
+  (let ((host (communication:host connection)))
+    (log :info "Trying to reconnect to~%  ~a" host)
+    (with-simple-restart (abort "Exit reconnection.")
+      (loop (setf connection (try-connect host))
+            (when connection (return connection))
+            (etypecase on-reconnect-failure
+              ((NIL) (return))
+              ((eql :sleep) (sleep 10))
+              ((eql :error) (error 'connection-lost :connection connection))
+              ((or symbol function)
+               (with-simple-restart (reconnect "Attempt to reconnect again.")
+                 (return (funcall on-reconnect-failure)))))))))
+
+(defun handle1 (connection)
+  (handler-case
+      (let ((message (communication:receive connection)))
+        (when message
+          (handler-case (communication:handle message connection)
+            (error (e)
+              (communication:esend connection e message)))))
+    (error (e)
+      (communication:esend connection e))))
+
+(defun command-loop (connection &key (on-disconnect :reconnect) (on-reconnect-failure :sleep))
+  (with-simple-restart (communication:exit-command-loop "Exit the command loop.")
+    (loop (unless (alive-p connection)
+            (restart-case
+                (case on-disconnect
+                  ((NIL)
+                   (return NIL))
+                  (:error
+                   (error 'connection-lost :connection connection))
+                  (:reconnect
+                   (invoke-restart 'reconnect)))
+              (reconnect ()
+                :report "Attempt to reconnect."
+                (setf connection (handle-reconnect connection :on-reconnect-failure on-reconnect-failure))
+                (unless connection (return)))))
+          (handle1 connection))))
+
 (defun dedicate (&rest start-args)
   (unless (connected-p)
     (apply #'start start-args))
-  (communication:command-loop *forge-connection*))
+  (command-loop *forge-connection*))
 
 (defun forge-package-p (package)
   (flet ((match (name)

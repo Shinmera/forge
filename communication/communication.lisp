@@ -9,6 +9,13 @@
 (defvar *version* ())
 (defvar *id-counter* 0)
 
+;; Init to something hopefully unique on this machine
+(defun init-id-counter (&optional (machine-id (sxhash (machine-instance))))
+  (let ((*random-state* (make-random-state T)))
+    (setf *id-counter* (+ (ash (ldb (byte 32 0) machine-id) 32)
+                          (ash (ldb (byte 16 0) (get-universal-time)) 16)
+                          (ash (ldb (byte 16 0) (random #xFFFF)) 0)))))
+
 (defun next-id ()
   (incf *id-counter*))
 
@@ -43,10 +50,20 @@
   ((id :initarg :id :initform (next-id) :reader id)))
 
 (defclass connection-established (message) ())
+
+(defmethod handle ((message connection-established) (connection connection)))
+
 (defclass connection-lost (message) ())
+
+(defmethod handle ((message connection-lost) (connection connection)))
+
 (defclass command (message) ())
-(defclass exit (command) ())
 (defclass ok (message) ())
+
+(defclass exit (command) ())
+
+(defmethod handle ((request exit) (connection connection))
+  (invoke-restart 'exit-command-loop))
 
 (defclass ping (message)
   ((clock :initform (get-universal-time) :reader clock)))
@@ -61,6 +78,13 @@
   ((condition-type :initarg :condition-type :initform (support:arg! :condition-type) :reader condition-type)
    (arguments :initarg :arguments :initform () :reader arguments)
    (report :initarg :report :initform NIL :reader report)))
+
+(defun esend (connection error &optional message)
+  (send (make-instance 'error-message :condition-type (type-of error)
+                                      :arguments (support:arguments error)
+                                      :report (princ-to-string error)
+                                      :id (if message (id message) (next-id)))
+        connection))
 
 (defclass eval-request (command)
   ((form :initarg :form :initform (support:arg! :form) :reader form)))
@@ -81,26 +105,3 @@
 
 (defgeneric encode-message (message stream))
 (defgeneric decode-message (type stream))
-
-(defun command-loop (connection)
-  (with-simple-restart (exit-command-loop "Exit processing commands")
-    (flet ((receive ()
-             (handler-case (receive connection)
-               (error ()
-                 (handle (make-instance 'connection-lost) connection)
-                 (invoke-restart 'exit-command-loop)))))
-      (loop (restart-case
-                (let ((message (receive)))
-                  (handler-case (handle message connection)
-                    (error (e)
-                      (reply! connection message 'error-message
-                              :condition-type (type-of e)
-                              :condition-arguments (support:arguments e)
-                              :report (princ-to-string e)))))
-              (reconnect ()
-                :report (lambda (s) (format s "Reconnect to ~a" (host connection)))
-                ;; FIXME: What to do if reconnection fails?
-                (connect (host connection)))
-              (continue ()
-                :report "Ignore the message and continue processing."
-                NIL))))))
