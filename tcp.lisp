@@ -22,3 +22,7 @@ Author: Nicolas Hafner <shinmera@tymoon.eu>
         (let ((client (make-instance 'client-connection :host (communication:host server) :socket socket)))
           (push client (connections server))
           (make-instance 'communication:connection-established :connection client))))))
+
+(defmethod communication:receive ((connection client-connection) &key timeout)
+  (when (or (null timeout) (usocket:wait-for-input (socket connection) :timeout timeout :ready-only T))
+    (communication:decode-message T (socket connection))))

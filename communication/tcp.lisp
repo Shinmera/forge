@@ -46,8 +46,8 @@
 (defclass client-connection (connection communication:client-connection) ())
 
 (defmethod communication:receive ((connection client-connection) &key timeout)
-  (communication:with-timeout timeout
-    (communication:decode-message T (socket connection))))
+  (declare (ignore timeout))
+  (communication:decode-message T (socket connection)))
 
 (defmethod communication:send (message (connection client-connection))
   (communication:encode-message message (socket connection)))

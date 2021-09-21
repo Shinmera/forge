@@ -6,17 +6,11 @@
 
 (in-package #:org.shirakumo.forge.communication)
 
-(defvar *timeout* NIL)
 (defvar *version* ())
 (defvar *id-counter* 0)
 
 (defun next-id ()
   (incf *id-counter*))
-
-(defmacro with-timeout (timeout &body body)
-  `(let ((*timeout* ,timeout))
-     ;; FIXME: properly implement timeouts.
-     ,@body))
 
 (defclass host () ())
 (defgeneric connect (host &key timeout)) ; => CONNECTION
