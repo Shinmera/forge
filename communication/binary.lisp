@@ -290,4 +290,20 @@
 (define-slot-coder return-message (id value))
 (define-slot-coder eval-request (id form))
 (define-slot-coder return-message (id value))
-(define-slot-coder file-transfer (id path payload))
+
+(define-encoding artefact (value stream)
+  (with-open-file (input (artefact-source value) :direction :input
+                                                 :element-type '(unsigned-byte 8))
+    (let ((buffer (make-array 4096 :element-type '(unsigned-byte 8))))
+      (declare (dynamic-extent buffer))
+      (loop for read = (read-sequence buffer input)
+            while (< 0 read)
+            do (write-sequence buffer stream :end read))))
+  (with-open-file (output (artefact-target value) :direction :output
+                                                 :element-type '(unsigned-byte 8)
+                                                 :if-exists :supersede)
+    (let ((buffer (make-array 4096 :element-type '(unsigned-byte 8))))
+      (declare (dynamic-extent buffer))
+      (loop for read = (read-sequence buffer stream)
+            while (< 0 read)
+            do (write-sequence buffer output :end read)))))

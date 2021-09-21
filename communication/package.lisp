@@ -39,16 +39,13 @@
    #:form
    #:return-message
    #:value
-   #:file-transfer
-   #:path
-   #:payload
+   #:artefact
+   #:artefact-source
+   #:artefact-target
    #:encode-message
    #:decode-message
    #:command-loop
    #:exit-command-loop)
-  ;; artefact.lisp
-  (:export
-   #:artefact)
   ;; binary.lisp
   (:export
    #:wu8

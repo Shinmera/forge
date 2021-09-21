@@ -77,18 +77,12 @@
   (let ((values (multiple-value-list (eval (form request)))))
     (reply! connection request 'return-message :value values)))
 
-(defclass file-transfer (message)
-  ((path :initarg :path :initform (support:arg! :path) :reader path)
-   (payload :initarg :payload :initform (support:arg! :payload) :reader payload)))
-
-(defmethod handle ((message file-transfer) (connection connection))
-  ;; FIXME: Streaming the file payload instead of first loading it into memory would be
-  ;;        far better.
-  (with-open-file (stream (path message) :direction :output
-                                         :if-exists :supersede
-                                         :element-type '(unsigned-byte 8))
-    (write-sequence (payload message) stream)
-    (reply! connection message 'ok)))
+(defstruct (artefact
+            (:constructor make-artefact (source target))
+            (:copier NIL)
+            (:predicate NIL))
+  (source NIL :type pathname :read-only T)
+  (target NIL :type pathname :read-only T))
 
 (defgeneric encode-message (message stream))
 (defgeneric decode-message (type stream))
