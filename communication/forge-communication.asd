@@ -16,6 +16,7 @@
   :serial T
   :components ((:file "package")
                (:file "communication")
+               (:file "binary")
                (:file "in-process")
-               (:file "binary"))
-  :depends-on ())
+               (:file "tcp"))
+  :depends-on (:forge-support))

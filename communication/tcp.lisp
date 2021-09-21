@@ -12,6 +12,9 @@
   (:export
    #:DEFAULT-PORT
    #:host
+   #:address
+   #:port
+   #:socket
    #:connection
    #:client-connection
    #:server-connection))
@@ -21,17 +24,13 @@
 
 (defclass host (communication:host)
   ((address :initarg :address :initform "0.0.0.0" :reader address)
-   (port :initarg :port :initform DEFAULT-PORT :reader port)))
+   (port :initarg :port :initform DEFAULT-PORT :reader port)
+   (connections :initform NIL :accessor connections :reader communication:connections)))
 
 (defmethod communication:connect ((host host) &key timeout)
   (let ((socket (socket:open-tcp (address host) (port host) :timeout timeout)))
     (when socket
       (make-instance 'client-connection :host host :socket socket))))
-
-(defmethod communication:serve ((host host) &key timeout)
-  (let ((socket (socket:listen-tcp (address host) (port host) :timeout timeout)))
-    (when socket
-      (make-instance 'server-connection :host host :socket socket))))
 
 (defclass connection (communication:connection)
   ((host :initarg :host :initform (error "HOST required.") :reader communication:host)
@@ -55,10 +54,3 @@
 
 (defclass server-connection (connection communication:server-connection)
   ((connections :initform () :accessor connections)))
-
-(defmethod communication:receive ((server server-connection) &key timeout)
-  (let ((socket (socket:accept-tcp (socket server) :timeout timeout)))
-    (when socket
-      (let ((client (make-instance 'client-connection :host (communication:host connection) :socket socket)))
-        (push client (communication:connections server))
-        (make-instance 'communication:connection-established :connection client)))))

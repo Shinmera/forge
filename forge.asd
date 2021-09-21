@@ -16,11 +16,14 @@
   :serial T
   :components ((:file "package")
                (:file "toolkit")
+               (:file "tcp")
                (:file "version")
                (:file "constraints")
                (:file "plan")
                (:file "basic"))
   :depends-on (:forge-support
                :forge-communication
-               :forge-tcp
-               :closer-mop))
+               :closer-mop
+               :promise
+               :usocket
+               :documentation-utils))

@@ -6,6 +6,8 @@
 
 (defpackage #:org.shirakumo.forge.communication
   (:use #:cl)
+  (:local-nicknames
+   (#:support #:org.shirakumo.forge.support))
   ;; communication.lisp
   (:export
    #:*timeout*

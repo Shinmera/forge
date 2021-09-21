@@ -15,11 +15,12 @@
 
 (defmacro with-timeout (timeout &body body)
   `(let ((*timeout* ,timeout))
+     ;; FIXME: properly implement timeouts.
      ,@body))
 
 (defclass host () ())
 (defgeneric connect (host &key timeout)) ; => CONNECTION
-(defgeneric serve (host &key timeout)) ; => CONNECTION
+(defgeneric serve (host)) ; => CONNECTION
 (defgeneric connections (host)) ; => (CONNECTION)
 
 (defclass connection () ())
@@ -103,7 +104,7 @@
                               :condition-arguments (arguments e)
                               :report (princ-to-string e)))))
               (reconnect ()
-                :report (lambda (s) "Reconnect to ~a" (host connection))
+                :report (lambda (s) (format s "Reconnect to ~a" (host connection)))
                 ;; FIXME: What to do if reconnection fails?
                 (connect (host connection)))
               (continue ()

@@ -17,8 +17,8 @@
    (queue :reader queue)))
 
 (defmethod initialize-instance :after ((host host) &key)
-  (let ((sentinel (cons NIL NIL))))
-  (setf (slot-value host 'queue) (cons sentinel sentinel)))
+  (let ((sentinel (cons NIL NIL)))
+    (setf (slot-value host 'queue) (cons sentinel sentinel))))
 
 (defmethod communication:connect ((host host) &key timeout)
   (declare (ignore timeout))
@@ -29,8 +29,7 @@
     (:connected
      host)))
 
-(defmethod communication:serve ((host host) &key timeout)
-  (declare (ignore timeout))
+(defmethod communication:serve ((host host))
   (ecase (state host)
     (:closed
      (setf (state host) :serving)
@@ -48,9 +47,10 @@
   (not (eql :closed (state host))))
 
 (defmethod close ((host host) &key abort)
+  (declare (ignore abort))
   (ecase (state host)
     (:connected
-     (write (make-instance 'communication:connection-lost :connection host) host)
+     (communication:send (make-instance 'communication:connection-lost :connection host) host)
      (setf (state host) :serving))
     (:serving
      (setf (car (queue host)) NIL)

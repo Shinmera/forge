@@ -21,9 +21,7 @@
    #:generic<)
   ;; socket.lisp
   (:export
-   #:open-tcp
-   #:listen-tcp
-   #:accept-tcp)
+   #:open-tcp)
   ;; process.lisp
   (:export
    #:launch
