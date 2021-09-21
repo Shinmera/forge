@@ -25,16 +25,27 @@
 (defmacro define-binary-accessor (size)
   `(progn
      (defun ,(intern (format NIL "WU~d" size)) (int stream)
+       (declare (type (unsigned-byte ,size) int))
+       (declare (type stream stream))
+       (declare (optimize speed (safety 1)))
        ,@(loop for i from 0 below size by 8
                collect `(write-byte (ldb (byte 8 ,i) int) stream)))
      (defun ,(intern (format NIL "RU~d" size)) (stream)
-       (+ ,@(loop for i from 0 below size by 8
-                  collect `(ash (read-byte stream) ,i))))
+       (declare (type stream stream))
+       (declare (optimize speed (safety 1)))
+       (the (unsigned-byte ,size)
+            (+ ,@(loop for i from 0 below size by 8
+                       collect `(ash (the (unsigned-byte 8) (read-byte stream)) ,i)))))
      (defun ,(intern (format NIL "RI~d" size)) (stream)
-       (let ((bits (+ ,@(loop for i from 0 below size by 8
-                              collect `(ash (read-byte stream) ,i)))))
-         (dpb bits (byte ,size 0)
-              (if (logbitp ,(1- size) bits) -1 0))))))
+       (declare (type stream stream))
+       (declare (optimize speed (safety 1)))
+       (let ((bits (the (unsigned-byte ,size)
+                        (+ ,@(loop for i from 0 below size by 8
+                                   collect `(ash (the (unsigned-byte 8) (read-byte stream)) ,i))))))
+         (declare (type (unsigned-byte ,size) bits))
+         (the (signed-byte ,size)
+              (dpb bits (byte ,size 0)
+                   (if (logbitp ,(1- size) bits) -1 0)))))))
 
 ;; FIXME: circularity, references
 
@@ -268,7 +279,7 @@
   (encode* (with-standard-io-syntax (prin1-to-string value)))
   (with-standard-io-syntax (read-from-string (decode (encoding-type-id 'string)))))
 
-;; What we can't do: functions, readtables, restarts.
+;; What we can't do: functions, readtables, restarts, streams.
 
 (define-slot-coder exit (id))
 (define-slot-coder ok (id))
