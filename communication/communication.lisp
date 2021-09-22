@@ -103,5 +103,12 @@
   (source NIL :type pathname :read-only T)
   (target NIL :type pathname :read-only T))
 
+(defstruct (dummy-symbol
+            (:constructor make-dummy-symbol (package name))
+            (:copier NIL)
+            (:predicate NIL))
+  (package NIL :type string :read-only T)
+  (name NIL :type string :read-only T))
+
 (defgeneric encode-message (message stream))
 (defgeneric decode-message (type stream))

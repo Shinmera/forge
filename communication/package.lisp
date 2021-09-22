@@ -47,6 +47,9 @@
    #:artefact
    #:artefact-source
    #:artefact-target
+   #:dummy-symbol
+   #:dummy-symbol-package
+   #:dummy-symbol-name
    #:encode-message
    #:decode-message
    #:exit-command-loop)

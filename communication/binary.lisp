@@ -118,7 +118,10 @@
         (name (decode (encoding-type-id 'string))))
     (if (string= package "")
         (make-symbol name)
-        (intern name (find-package package)))))
+        (or (let ((maybe-package (find-package package)))
+              (when maybe-package
+                (find-symbol name maybe-package)))
+            (make-dummy-symbol package name)))))
 
 ;; FIXME: Bignum support
 (define-encoding integer (value stream)
@@ -307,3 +310,13 @@
       (loop for read = (read-sequence buffer stream)
             while (< 0 read)
             do (write-sequence buffer output :end read)))))
+
+;; Flex to make dummy-symbols appear as symbols on the wire, as the symbol
+;; decode takes care of restructuring them as dummies if not found.
+(defmethod encode-message ((value dummy-symbol) (stream stream))
+  (wu16 #.(encoding-type-id 'symbol) stream)
+  (encode-payload value stream))
+
+(defmethod encode-payload ((value dummy-symbol) (stream stream))
+  (encode-payload (dummy-symbol-package value) stream)
+  (encode-payload (dummy-symbol-name value) stream))
