@@ -24,8 +24,7 @@
 
 (defclass host (communication:host)
   ((address :initarg :address :initform "0.0.0.0" :reader address)
-   (port :initarg :port :initform DEFAULT-PORT :reader port)
-   (connections :initform NIL :accessor connections :reader )))
+   (port :initarg :port :initform DEFAULT-PORT :reader port)))
 
 (defmethod communication:connect ((host host) &key timeout)
   (let ((socket (socket:open-tcp (address host) (port host) :timeout timeout)))
@@ -43,10 +42,10 @@
   (ignore-errors (close (socket connection) :abort abort))
   (setf (socket connection) NIL))
 
+(defclass client-connection (connection communication:client-connection) ())
+
 (defmethod communication:handle :before ((message communication:connection-lost) (connection client-connection))
   (close connection :abort T))
-
-(defclass client-connection (connection communication:client-connection) ())
 
 (defmethod communication:receive ((connection client-connection) &key timeout)
   (declare (ignore timeout))

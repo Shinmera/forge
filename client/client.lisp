@@ -114,3 +114,14 @@
 (defun prune ()
   (kill-server)
   (prune-package (remove-if-not #'forge-package-p (list-all-packages))))
+
+(defun request-effect (effect-type parameters &key (version T) (execute-on :self) (connection *forge-connection*))
+  (communication:send! connection 'communication:effect-request
+                       :effect-type effect-type
+                       :parameters parameters
+                       :version version
+                       :execute-on execute-on))
+
+(defun load-project (project &key (version T) (connection *forge-connection*))
+  (request-effect (communication:make-dummy-symbol "ORG.SHIRAKUMO.FORGE.MODULES.LISP" "LOAD-EFFECT")
+                  (list :project project) :version version :connection connection))

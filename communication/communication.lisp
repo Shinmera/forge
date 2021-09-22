@@ -96,6 +96,13 @@
   (let ((values (multiple-value-list (eval (form request)))))
     (reply! connection request 'return-message :value values)))
 
+;; Class for a client to request a plan and execution.
+(defclass effect-request (command)
+  ((effect-type :initarg :effect-type :initform (support:arg! :effect-type) :reader effect-type)
+   (parameters :initarg :parameters :initform (support:arg! :parameters) :reader parameters)
+   (version :initarg :version :initform (support:arg! :version) :reader version)
+   (execute-on :initarg :execute-on :initform :self :reader execute-on)))
+
 (defstruct (artefact
             (:constructor make-artefact (source target))
             (:copier NIL)

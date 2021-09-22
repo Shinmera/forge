@@ -44,10 +44,16 @@
    #:form
    #:return-message
    #:value
+   #:effect-request
+   #:effect-type
+   #:parameters
+   #:version
+   #:execute-on
    #:artefact
    #:artefact-source
    #:artefact-target
    #:dummy-symbol
+   #:make-dummy-symbol
    #:dummy-symbol-package
    #:dummy-symbol-name
    #:encode-message
