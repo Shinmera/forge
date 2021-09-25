@@ -19,6 +19,8 @@
                (:file "tcp")
                (:file "version")
                (:file "constraints")
+               (:file "artefact")
+               (:file "network")
                (:file "plan")
                (:file "basic"))
   :depends-on (:forge-support
