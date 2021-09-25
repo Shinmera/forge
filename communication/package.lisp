@@ -28,14 +28,17 @@
    #:connections
    #:message
    #:id
-   #:connection-established
+   #:reply
    #:connection-lost
    #:command
    #:exit
    #:ok
    #:ping
    #:pong
+   #:connect
+   #:name
    #:error-message
+   #:warning-message
    #:esend
    #:condition-type
    #:arguments
@@ -59,7 +62,8 @@
    #:encode-message
    #:decode-message
    #:handle1
-   #:exit-command-loop)
+   #:exit-command-loop
+   #:handshake)
   ;; binary.lisp
   (:export
    #:wu8

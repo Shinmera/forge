@@ -20,7 +20,7 @@
   (incf *id-counter*))
 
 (defclass host () ())
-(defgeneric connect (host &key timeout)) ; => CONNECTION
+(defgeneric connect (host name &key timeout)) ; => CONNECTION
 (defgeneric serve (host)) ; => CONNECTION
 (defgeneric connections (host)) ; => (CONNECTION)
 
@@ -49,47 +49,57 @@
 (defclass message ()
   ((id :initarg :id :initform (next-id) :reader id)))
 
-(defclass connection-established (message) ())
-
-(defmethod handle ((message connection-established) (connection connection)))
+(defclass reply ()
+  ())
 
 (defclass connection-lost (message) ())
 
 (defmethod handle ((message connection-lost) (connection connection)))
 
 (defclass command (message) ())
-(defclass ok (message) ())
+(defclass ok (reply) ())
 
 (defclass exit (command) ())
 
 (defmethod handle ((request exit) (connection connection))
   (invoke-restart 'exit-command-loop))
 
-(defclass ping (message)
+(defclass ping (command)
   ((clock :initform (get-universal-time) :reader clock)))
 
-(defclass pong (message)
+(defclass pong (reply)
   ((clock :initform (get-universal-time) :reader clock)))
 
 (defmethod handle ((request ping) (connection connection))
   (reply! connection request 'pong))
 
-(defclass error-message (message)
+(defclass connect (command)
+  ((name :initarg :name :initform (support:arg! :name) :reader name)))
+
+(defclass error-message (reply)
   ((condition-type :initarg :condition-type :initform (support:arg! :condition-type) :reader condition-type)
    (arguments :initarg :arguments :initform () :reader arguments)
    (report :initarg :report :initform NIL :reader report)))
 
-(defun esend (connection error &optional message)
-  (send (make-instance 'error-message :condition-type (type-of error)
-                                      :arguments (support:arguments error)
-                                      :report (princ-to-string error)
-                                      :id (if message (id message) (next-id)))
+(defclass warning-message (reply)
+  ((condition-type :initarg :condition-type :initform (support:arg! :condition-type) :reader condition-type)
+   (arguments :initarg :arguments :initform () :reader arguments)
+   (report :initarg :report :initform NIL :reader report)))
+
+(defun esend (connection condition &optional message)
+  (send (make-instance (etypecase condition
+                         (error 'error-message)
+                         (T 'warning-message))
+                       :condition-type (type-of condition)
+                       :arguments (support:arguments condition)
+                       :report (princ-to-string condition)
+                       :id (if message (id message) (next-id)))
         connection))
 
 (defclass eval-request (command)
   ((form :initarg :form :initform (support:arg! :form) :reader form)))
 
-(defclass return-message (message)
+(defclass return-message (reply)
   ((value :initarg :value :initform (support:arg! :value) :reader value)))
 
 (defmethod handle ((request eval-request) (connection connection))
@@ -129,3 +139,14 @@
               (esend connection e message)))))
     (error (e)
       (esend connection e))))
+
+(defun handshake (connection name &key timeout)
+  (let ((message (communication:send! connection 'connect :name name)))
+    (let ((message (receive connection :timeout timeout)))
+      (etypecase message
+        (ok
+         connection)
+        (error-message
+         (error 'connection-failed :report (report message)))
+        (warning-message
+         (warn "Trouble connecting: ~a" (report message)))))))
