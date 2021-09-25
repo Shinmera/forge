@@ -6,29 +6,6 @@
 
 (in-package #:org.shirakumo.forge)
 
-(defvar *machines* (make-hash-table :test 'eql))
-
-(defun find-machine (name &key (if-does-not-exist :error))
-  (or (gethash name *machines*)
-      (ecase if-does-not-exist
-        ((NIL) NIL)
-        (:error (error 'no-such-machine :name name))
-        (:create (setf (gethash name *machines*) (make-instance 'machine :name name))))))
-
-(defun (setf find-machine) (machine name &key (if-exists :error))
-  (when (gethash name *machines*)
-    (ecase if-exists
-      ((NIL) (return-from (setf find-machine) NIL))
-      (:error (error 'machine-already-exists :name name))
-      (:replace)))
-  (setf (gethash name *machines*) machine))
-
-(defun delete-machine (name)
-  (when (typep name 'machine)
-    (setf name (name name)))
-  (remhash name *machines*)
-  name)
-
 (defclass machine ()
   ((name :initarg :name :initform (support:arg! :name) :reader name)
    (registries :initform (make-hash-table :test 'equal) :reader registries)))
@@ -36,7 +13,6 @@
 (defgeneric find-registry (name machine &key if-does-not-exist))
 (defgeneric (setf find-registry) (registry name machine &key if-exists))
 (defgeneric artefact-pathname (artefact machine))
-;; => Pathname local to machine
 (defgeneric pathname-artefact (pathname machine &key if-does-not-exist))
 
 (defmethod find-registry (name (machine machine) &key (if-does-not-exist :error))
