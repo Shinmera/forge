@@ -58,29 +58,6 @@
       (error "Different effect with same parameters and version already exists!"))
     (setf (gethash version effects) effect)))
 
-(defclass file-component (component)
-  ((file :initarg :file :iinitform (error "FILE required") :accessor file)))
-
-(defclass file-operation (operation)
-  ())
-
-(defmethod dependencies append ((operation file-operation) (component file-component))
-  (list (depend 'ensure-file (file component) :version (version component))))
-
-(defclass file-output-operation (operation))
-
-(defgeneric output-file (operation component))
-
-(defmethod output-file ((operation symbol) component)
-  (output-file (prototype operation) component))
-
-(defclass ensure-file (operation)
-  ())
-
-(defmethod perform ((operation ensure-file) (component file-component) client)
-  (unless (probe-artefact (file component) client)
-    (send client (file component) #'identity)))
-
 (defclass parameter-plist-effect (effect)
   ())
 
@@ -276,7 +253,7 @@
     (perform (operation step) (component step))))
 
 (defclass linear-executor (basic-executor)
-  ())
+  ((client :initarg :client :initform (first (list-clients)) :accessor client)))
 
 (defun compute-step-sequence (plan)
   (let ((visit (make-hash-table :test 'eq))
@@ -291,6 +268,16 @@
             do (visit step))
       sequence)))
 
-(defmethod execute ((plan plan) (executor basic-executor))
-  (dolist (step (compute-step-sequence plan))
-    (execute step executor)))
+(defmethod execute ((plan plan) (executor linear-executor))
+  (let ((sequence (compute-step-sequence plan)))
+    (loop for step in sequence
+          for promise = (execute step executor)
+          do (when (typep promise 'promise:promise)
+               (loop (case (promise:state promise)
+                       (:pending (communication:handle1 (connection (client executor)) :timeout 1))
+                       (:success (return))
+                       (:failure (error 'execution-failed :step step :error (promise::value promise)))
+                       (:timeout (error 'execution-timed-out :step step)))
+                     (promise:tick-all (get-universal-time)))))))
+
+

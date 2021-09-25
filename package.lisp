@@ -10,5 +10,6 @@
   (:local-nicknames
    (#:support #:org.shirakumo.forge.support)
    (#:communication #:org.shirakumo.forge.communication)
-   (#:tcp #:org.shirakumo.forge.communication.tcp))
+   (#:tcp #:org.shirakumo.forge.communication.tcp)
+   (#:promise #:org.shirakumo.promise))
   (:export))

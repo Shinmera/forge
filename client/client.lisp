@@ -65,16 +65,6 @@
                (with-simple-restart (reconnect "Attempt to reconnect again.")
                  (return (funcall on-reconnect-failure)))))))))
 
-(defun handle1 (connection)
-  (handler-case
-      (let ((message (communication:receive connection)))
-        (when message
-          (handler-case (communication:handle message connection)
-            (error (e)
-              (communication:esend connection e message)))))
-    (error (e)
-      (communication:esend connection e))))
-
 (defun command-loop (connection &key (on-disconnect :reconnect) (on-reconnect-failure :sleep))
   (with-simple-restart (communication:exit-command-loop "Exit the command loop.")
     (loop (unless (alive-p connection)
@@ -90,7 +80,7 @@
                 :report "Attempt to reconnect."
                 (setf connection (handle-reconnect connection :on-reconnect-failure on-reconnect-failure))
                 (unless connection (return)))))
-          (handle1 connection))))
+          (communication:handle1 connection))))
 
 (defun dedicate (&rest start-args)
   (unless (connected-p)
