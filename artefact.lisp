@@ -6,6 +6,10 @@
 
 (in-package #:org.shirakumo.forge)
 
+;; Early-def
+(defclass registry () ())
+(defclass artefact () ())
+
 (defclass machine ()
   ((name :initarg :name :initform (support:arg! :name) :reader name)
    (registries :initform (make-hash-table :test 'equal) :reader registries)))
@@ -24,7 +28,7 @@
 (defmethod (setf find-registry) ((registry registry) name (machine machine) &key (if-exists :error))
   (when (gethash name (registries machine))
     (ecase if-exists
-      ((NIL) (return-from (setf find-registry) NIL))
+      ((NIL) (return-from find-registry NIL))
       (:error (error 'registry-already-exists :name name :machine machine))
       (:replace)))
   (setf (gethash name (registries machine)) registry))

@@ -20,8 +20,7 @@ Author: Nicolas Hafner <shinmera@tymoon.eu>
     (let ((socket (usocket:socket-accept (socket server) :element-type '(unsigned-byte 8))))
       (when socket
         (let ((client (make-instance 'client-connection :host (communication:host server) :socket socket)))
-          (push client (connections server))
-          (make-instance 'communication:connection-established :connection client))))))
+          (push client (connections server)))))))
 
 (defmethod communication:receive ((connection client-connection) &key timeout)
   (when (or (null timeout) (usocket:wait-for-input (socket connection) :timeout timeout :ready-only T))

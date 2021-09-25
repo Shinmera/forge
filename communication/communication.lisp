@@ -142,7 +142,7 @@
       (esend connection e))))
 
 (defun handshake (connection name &key timeout)
-  (let ((message (communication:send! connection 'connect :name name)))
+  (let ((message (send! connection 'connect :name name)))
     (let ((message (receive connection :timeout timeout)))
       (etypecase message
         (ok

@@ -19,12 +19,52 @@
 (defclass server (peer)
   ((name :initform :server)
    (machine :initform (find-machine :server :if-does-not-exist :create))
-   (connection :initform (communication:serve (make-instance 'tcp:host)))
+   (connection :initform NIL)
 
    (machines :initform (make-hash-table :test 'equal) :reader machines)
-   (client-info :initform (make-hash-table :test 'equal) :reader client-info)
+   (client-info-table :initform (make-hash-table :test 'equal) :reader client-info-table)
    (clients :initform (make-hash-table :test 'equal) :reader clients)
-   (on-existing-client :initarg :on-existing-client :initform :replace :accessor on-existing-client)))
+   (on-existing-client :initarg :on-existing-client :initform :replace :accessor on-existing-client)
+   (message-thread :initform NIL :accessor message-thread)
+   (running-p :initform T :accessor running-p)))
+
+(defmethod start ((server server) &key (listen :tcp) (address "107.0.0.1") (port tcp:DEFAULT-PORT))
+  (when (communication:alive-p server)
+    (error "server is already running."))
+  (unless (and (connection server) (communication:alive-p (connection server)))
+    (setf (connection server) (ecase listen
+                                (:tcp (make-instance 'tcp:host :address address :port port))
+                                (:in-process (make-instance 'in-process:host)))))
+  (v:info :forge.network "Starting server ~a..." server)
+  (setf (running-p server) T)
+  (setf (message-thread server)
+        (bt:make-thread (lambda () (message-loop server))
+                        :name (format NIL "forge-~a-message-thread" (name server)))))
+
+(defmethod stop ((server server))
+  (when (communication:alive-p server)
+    (let ((thread (message-thread server)))
+      (v:info :forge.network "Stopping server ~a..." server)
+      (setf (running-p server) NIL)
+      (loop for i from 0
+            do (unless (bt:thread-alive-p thread)
+                 (return))
+               (when (<= 10 i)
+                 (restart-case (error "Message thread is not shutting down!")
+                   (interrupt (&optional (function #'break))
+                     :report "Try to interrupt the thread."
+                     (bt:interrupt-thread thread function))
+                   (abort ()
+                     :report "Kill and forget the thread."
+                     (bt:destroy-thread thread)
+                     (setf (message-thread server) NIL))
+                   (continue ()
+                     :report "Continue waiting.")))
+               (sleep 0.1)))))
+
+(defmethod communication:alive-p ((server server))
+  (and (message-thread server)
+       (bt:thread-alive-p (message-thread server))))
 
 (defgeneric find-machine (name server &key if-does-not-exist))
 (defgeneric (setf find-machine) (machine name server &key if-exists))
@@ -46,7 +86,7 @@
 (defmethod (setf find-machine) ((machine machine) name (server server) &key (if-exists :error))
   (when (gethash name *machines*)
     (ecase if-exists
-      ((NIL) (return-from (setf find-machine) NIL))
+      ((NIL) (return-from find-machine NIL))
       (:error (error 'machine-already-exists :name name))
       (:replace)))
   (setf (gethash name (machines server)) machine))
@@ -59,14 +99,14 @@
   name)
 
 (defmethod client-info (name (server server))
-  (or (gethash name (client-info server))
+  (or (gethash name (client-info-table server))
       (error 'no-such-client :name name)))
 
 (defmethod (setf client-info) (info name (server server))
-  (setf (gethash name (client-info server))  info))
+  (setf (gethash name (client-info-table server))  info))
 
 (defmethod (setf client-info) ((info null) name (server server))
-  (remhash name (client-info server)))
+  (remhash name (client-info-table server)))
 
 (defmethod artefact-changed-p ((artefact artefact) (server server))
   ;; Better would be checking the hash to track changes on sub-second granularity
@@ -80,24 +120,30 @@
 (defmethod artefact-changed-p (artefact (server (eql T)))
   (artefact-changed-p artefact *server*))
 
-(defmethod handshake ((server server) (connection connection) (message communication:connect))
-  (ecase (communication:version message)
+(defmethod handshake ((server server) (connection communication:connection) (message communication:connect))
+  (case (communication:version message)
     (0
      (let* ((name (communication:name message))
             (existing (gethash name (clients server)))
             (info (client-info name server)))
+       (v:debug :forge.network "Attempted connection establishment for ~a" name)
        (if existing
            (ecase (on-existing-client server)
              (:replace
+              (v:debug :forge.network "Replacing connection of duplicate client ~a" name)
               (close existing :abort T)
               (communication:esend connection (make-condition 'client-replaced :name name) message))
              (:error
               (error 'client-already-exists :name name)))
            (communication:reply! connection message 'communication:ok))
-       (setf (gethash name (clients server))
-             (apply #'make-instance 'client :connection connection :server server :name name info))))))
+       (let ((client (apply #'make-instance 'client :connection connection :server server :name name info)))
+         (v:info :forge.network "Established new client connection ~a" client)
+         (setf (gethash name (clients server)) client))))
+    (T
+     (error 'unsupported-protocol-version :version (communication:version message)))))
 
 (defmethod message-loop ((server server))
+  (v:debug :forge.network "Entering message loop for ~a" server)
   (macrolet ((with-message ((message connection) &body body)
                `(let ((,message (communication:receive ,connection :timeout 0.0)))
                   (when ,message
@@ -105,8 +151,12 @@
     (let ((connection (connection server))
           (pending ())
           (last-check (get-internal-real-time)))
-      (loop ;; Check for incoming connection requests
+      (loop (unless (running-p server)
+              (v:debug :forge.network "Leaving message loop for ~a" server)
+              (return))
+            ;; Check for incoming connection requests
             (with-message (new-connection connection)
+              (v:debug :forge.network "New incoming connection at ~a" connection)
               (push new-connection pending))
             ;; Process pending connections to see if we can upgrade them
             (dolist (connection pending)
@@ -116,9 +166,13 @@
                     (handler-case
                         (handshake server connection message)
                       (error (e)
+                        (v:debug :forge.network "Encountered error during handshake: ~a" e)
+                        (v:trace :forge.network e)
                         (communication:esend connection e message)
                         (close connection))))
-                (error ()
+                (error (e)
+                  (v:debug :forge.network "Encountered weird message during connection establishment.")
+                  (v:trace :forge.network e)
                   (ignore-errors (close connection))
                   (setf pending (remove connection pending)))))
             ;; Process established client messages
@@ -170,12 +224,15 @@
              (setf (cdr (last-message client)) 1)
              (communication:send! (connection client) 'communication:ping)))
           ((< 75 timeout)
+           (v:debug :forge.network "Connection unstable: no reply in 75 seconds for ~a..."  client)
            (when (< (cdr (last-message client)) 2)
              (setf (cdr (last-message client)) 2)
              (communication:send! (connection client) 'communication:ping)))
           ((< 120 timeout)
+           (v:warn :forge.network "Dropping client ~a as we have not received a message in 2 minutes." client)
            (close client)))))
 
 (defmethod close ((client client) &key abort)
+  (v:info :forge "Closing connection to ~a" client)
   (remhash (name client) (clients (server client)))
   (close (connection client) :abort abort))

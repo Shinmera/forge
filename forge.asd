@@ -28,4 +28,6 @@
                :closer-mop
                :promise
                :usocket
-               :documentation-utils))
+               :documentation-utils
+               :bordeaux-threads
+               :verbose))
