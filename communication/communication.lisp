@@ -6,7 +6,7 @@
 
 (in-package #:org.shirakumo.forge.communication)
 
-(defvar *version* ())
+(defvar *version* 0)
 (defvar *id-counter* 0)
 
 ;; Init to something hopefully unique on this machine
@@ -74,7 +74,8 @@
   (reply! connection request 'pong))
 
 (defclass connect (command)
-  ((name :initarg :name :initform (support:arg! :name) :reader name)))
+  ((name :initarg :name :initform (support:arg! :name) :reader name)
+   (version :initarg :version :initform *version* :reader version)))
 
 (defclass error-message (reply)
   ((condition-type :initarg :condition-type :initform (support:arg! :condition-type) :reader condition-type)

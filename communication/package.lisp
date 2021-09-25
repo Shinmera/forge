@@ -37,6 +37,7 @@
    #:pong
    #:connect
    #:name
+   #:version
    #:error-message
    #:warning-message
    #:esend
