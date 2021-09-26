@@ -14,6 +14,7 @@
 
 (defclass host (communication:host communication:client-connection communication:server-connection)
   ((state :initform :closed :accessor state)
+   (name :initform NIL)
    (queue :reader queue)))
 
 (defmethod initialize-instance :after ((host host) &key)
@@ -24,6 +25,7 @@
   (declare (ignore timeout))
   (ecase (state host)
     (:serving
+     (setf (slot-value host 'communication:name) name)
      (setf (state host) :connected)
      host)
     (:connected

@@ -29,7 +29,7 @@
 (defmethod communication:connect ((host host) name &key timeout)
   (let ((socket (socket:open-tcp (address host) (port host) :timeout timeout)))
     (when socket
-      (communication:handshake (make-instance 'client-connection :host host :socket socket) name :timeout timeout))))
+      (communication:handshake (make-instance 'client-connection :name name :host host :socket socket) name :timeout timeout))))
 
 (defclass connection (communication:connection)
   ((host :initarg :host :initform (error "HOST required.") :reader communication:host)

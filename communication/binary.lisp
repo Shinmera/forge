@@ -59,9 +59,12 @@
                                    :if-exists :supersede)
     (encode-message value stream)))
 
-(defmethod decode-message ((id (eql T)) (pathname pathname))
+(defmethod decode-message (type (pathname pathname))
   (with-open-file (stream pathname :direction :input :element-type '(unsigned-byte 8))
-    (decode-message (ru16 stream) stream)))
+    (decode-message type stream)))
+
+(defmethod decode-message ((type (eql T)) (stream stream))
+  (decode-message (ru16 stream) stream))
 
 (defmethod decode-message (type source)
   (if (typep type 'integer)
@@ -95,7 +98,7 @@
      (progn
        ,@(loop for slot in slots
                collect `(encode (slot-value value ',slot))))
-     (let ((value (allocate-instance ',class)))
+     (let ((value (allocate-instance (find-class ',class))))
        ,@(loop for slot in slots
                collect `(setf (slot-value value ',slot) (decode)))
        value)))
@@ -284,32 +287,35 @@
 
 ;; What we can't do: functions, readtables, restarts, streams.
 
-(define-slot-coder exit (id))
 (define-slot-coder ok (id))
+(define-slot-coder exit (id))
+(define-slot-coder connect (id name version))
 (define-slot-coder ping (id clock))
 (define-slot-coder pong (id clock))
 (define-slot-coder error-message (id condition-type arguments report))
-(define-slot-coder eval-request (id form))
-(define-slot-coder return-message (id value))
+(define-slot-coder warning-message (id condition-type arguments report))
 (define-slot-coder eval-request (id form))
 (define-slot-coder return-message (id value))
 
 (define-encoding artefact (value stream)
-  (with-open-file (input (artefact-source value) :direction :input
-                                                 :element-type '(unsigned-byte 8))
-    (let ((buffer (make-array 4096 :element-type '(unsigned-byte 8))))
-      (declare (dynamic-extent buffer))
-      (loop for read = (read-sequence buffer input)
-            while (< 0 read)
-            do (write-sequence buffer stream :end read))))
-  (with-open-file (output (artefact-target value) :direction :output
-                                                  :element-type '(unsigned-byte 8)
-                                                  :if-exists :supersede)
-    (let ((buffer (make-array 4096 :element-type '(unsigned-byte 8))))
-      (declare (dynamic-extent buffer))
-      (loop for read = (read-sequence buffer stream)
-            while (< 0 read)
-            do (write-sequence buffer output :end read)))))
+  (progn
+    (encode* (artefact-target value))
+    (with-open-file (input (artefact-source value) :direction :input
+                                                   :element-type '(unsigned-byte 8))
+      (let ((buffer (make-array 4096 :element-type '(unsigned-byte 8))))
+        (declare (dynamic-extent buffer))
+        (loop for read = (read-sequence buffer input)
+              while (< 0 read)
+              do (write-sequence buffer stream :end read)))))
+  (let ((target (decode (encoding-type-id 'string))))
+    (with-open-file (output target :direction :output
+                                   :element-type '(unsigned-byte 8)
+                                   :if-exists :supersede)
+      (let ((buffer (make-array 4096 :element-type '(unsigned-byte 8))))
+        (declare (dynamic-extent buffer))
+        (loop for read = (read-sequence buffer stream)
+              while (< 0 read)
+              do (write-sequence buffer output :end read))))))
 
 ;; Flex to make dummy-symbols appear as symbols on the wire, as the symbol
 ;; decode takes care of restructuring them as dummies if not found.
@@ -320,3 +326,14 @@
 (defmethod encode-payload ((value dummy-symbol) (stream stream))
   (encode-payload (dummy-symbol-package value) stream)
   (encode-payload (dummy-symbol-name value) stream))
+
+(define-encoding dummy-object (value stream)
+  (encode* (dummy-object-description value))
+  (make-dummy-object (decode (encoding-type-id 'string))))
+
+(defmethod encode-message (object (stream stream))
+  (wu16 #.(encoding-type-id 'dummy-object) stream)
+  (encode-payload object stream))
+
+(defmethod encode-payload (object (stream stream))
+  (encode-payload (princ-to-string object) stream))

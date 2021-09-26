@@ -9,6 +9,9 @@
 (defvar *version* 0)
 (defvar *id-counter* 0)
 
+(support:define-condition* connection-failed (error)
+  (host name report) ("Connection to~%  ~a~%with name ~s failed~@[:~%  ~a~]" host name report))
+
 ;; Init to something hopefully unique on this machine
 (defun init-id-counter (&optional (machine-id (sxhash (machine-instance))))
   (let ((*random-state* (make-random-state T)))
@@ -43,13 +46,14 @@
 (define-compiler-macro reply! (connection message type &rest args)
   `(send (make-instance ,type :id (id ,message) ,@args) ,connection))
 
-(defclass client-connection (connection) ())
+(defclass client-connection (connection)
+  ((name :initarg :name :initform (support:arg! :name) :reader name)))
 (defclass server-connection (connection) ())
 
 (defclass message ()
   ((id :initarg :id :initform (next-id) :reader id)))
 
-(defclass reply ()
+(defclass reply (message)
   ())
 
 (defclass connection-lost (message) ())
@@ -121,6 +125,12 @@
   (source NIL :type pathname :read-only T)
   (target NIL :type pathname :read-only T))
 
+(defstruct (dummy-object
+            (:constructor make-dummy-object (description))
+            (:copier NIL)
+            (:predicate NIL))
+  (description NIL :type string :read-only T))
+
 (defstruct (dummy-symbol
             (:constructor make-dummy-symbol (package name))
             (:copier NIL)
@@ -147,7 +157,9 @@
       (etypecase message
         (ok
          connection)
+        (null
+         (error 'connection-failed :host (host connection) :name name :report "Timeout reached."))
         (error-message
-         (error 'connection-failed :report (report message)))
+         (error 'connection-failed :host (host connection) :name name :report (report message)))
         (warning-message
          (warn "Trouble connecting: ~a" (report message)))))))

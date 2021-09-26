@@ -28,26 +28,22 @@
 
 (defgeneric launch-server (method &key connect &allow-other-keys))
 
-(defmethod launch-server ((method (eql :binary)) &key (binary *forge-binary*) (address "127.0.0.1") (port TCP:DEFAULT-PORT) connect)
+(defmethod launch-server ((method (eql :binary)) &key (binary *forge-binary*) (address "127.0.0.1") (port TCP:DEFAULT-PORT))
   (when (and *forge-process* (null (support:exit-code *forge-process*)))
     (error 'process-already-running :process *forge-process*))
-  (setf *forge-process* (support:launch *forge-binary* (list "launch" address port)))
-  (let ((host (make-instance 'tcp:host :address address :port port)))
-    (if connect
-        (communication:connect host :timeout 1.0)
-        host)))
+  (setf *forge-process* (support:launch binary (list "launch" address (princ-to-string port))))
+  (make-instance 'tcp:host :address address :port port))
 
 (defmethod launch-server ((method (eql :launch-self)) &key)
   ;; TODO: self-launching
   )
 
-(defmethod launch-server ((method (eql :in-process)) &key connect)
-  (declare (ignore connect))
+(defmethod launch-server ((method (eql :in-process)) &key)
   #+asdf (if (asdf:find-system :forge-server)
              (asdf:load-system :forge-server)
              (load-server))
   #-asdf (load-server)
-  (communication:connect (communication:serve (make-instance 'in-process:host))))
+  (communication:serve (make-instance 'in-process:host)))
 
 (defun kill-server ()
   (stop)

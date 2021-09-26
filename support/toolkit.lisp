@@ -6,6 +6,8 @@
 
 (in-package #:org.shirakumo.forge.support)
 
+(defvar *debugger* T)
+
 (define-condition forge-condition (condition)
   ())
 
@@ -95,3 +97,16 @@
            NIL)
           (T
            (string< (package-name (symbol-package a)) (package-name (symbol-package b)))))))
+
+(defmacro handler-case* (body &body cases)
+  (let ((return (gensym "RETURN")))
+    `(block ,return
+       (handler-bind
+           ,(loop for (type vars . body) in cases
+                  collect `(,type (lambda ,vars
+                                    (when *debugger*
+                                      (with-simple-restart (continue "Continue")
+                                        (invoke-debugger ,@vars)))
+                                    (return-from ,return
+                                      (progn ,@body)))))
+         ,body))))

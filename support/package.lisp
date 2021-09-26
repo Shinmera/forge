@@ -8,6 +8,7 @@
   (:use #:cl)
   ;; toolkit.lisp
   (:export
+   #:*debugger*
    #:forge-condition
    #:arguments
    #:define-condition*
@@ -19,7 +20,8 @@
    #:or*
    #:call
    #:prototype
-   #:generic<)
+   #:generic<
+   #:handler-case*)
   ;; socket.lisp
   (:export
    #:open-tcp)

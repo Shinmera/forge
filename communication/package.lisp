@@ -10,8 +10,12 @@
    (#:support #:org.shirakumo.forge.support))
   ;; communication.lisp
   (:export
-   #:*timeout*
-   #:with-timeout
+   #:version
+   #:connection-failed
+   #:host
+   #:name
+   #:report
+   #:init-id-counter
    #:host
    #:connect
    #:serve
@@ -56,6 +60,8 @@
    #:artefact
    #:artefact-source
    #:artefact-target
+   #:dummy-object
+   #:dummy-object-description
    #:dummy-symbol
    #:make-dummy-symbol
    #:dummy-symbol-package

@@ -8,17 +8,27 @@
 
 (defvar *server* NIL)
 
+(support:define-condition* no-such-client (error)
+  (name server) ("No client with the name~%  ~s~%is registered on~%  ~a" name server))
+
+(support:define-condition* no-such-machine (error)
+  (name server) ("No machine with the name~%  ~s~%is registered on~%  ~a" name server))
+
 (defclass peer ()
   ((name :initarg :name :initform (support:arg! :name) :reader name)
    (machine :initarg :machine :initform (support:arg! :machine) :reader machine)
    (connection :initarg :connection :initform (support:arg! :connection) :reader connection)))
+
+(defmethod print-object ((peer peer) stream)
+  (print-unreadable-object (peer stream :type T)
+    (format stream "~s ~:[DEAD~;ALIVE~]" (name peer) (communication:alive-p peer))))
 
 (defmethod communication:alive-p ((peer peer))
   (communication:alive-p (connection peer)))
 
 (defclass server (peer)
   ((name :initform :server)
-   (machine :initform (find-machine :server :if-does-not-exist :create))
+   (machine :initform NIL)
    (connection :initform NIL)
 
    (machines :initform (make-hash-table :test 'equal) :reader machines)
@@ -28,23 +38,34 @@
    (message-thread :initform NIL :accessor message-thread)
    (running-p :initform T :accessor running-p)))
 
-(defmethod start ((server server) &key (listen :tcp) (address "107.0.0.1") (port tcp:DEFAULT-PORT))
+(defmethod initialize-instance :after ((server server) &key)
+  (unless (machine server)
+    (setf (slot-value server 'machine) (find-machine :server server :if-does-not-exist :create)))
+  (setf *server* server))
+
+(defmethod start ((server server) &key (listen :tcp) (address "127.0.0.1") (port tcp:DEFAULT-PORT))
   (when (communication:alive-p server)
     (error "server is already running."))
   (unless (and (connection server) (communication:alive-p (connection server)))
-    (setf (connection server) (ecase listen
-                                (:tcp (make-instance 'tcp:host :address address :port port))
-                                (:in-process (make-instance 'in-process:host)))))
-  (v:info :forge.network "Starting server ~a..." server)
+    (setf (slot-value server 'connection)
+          (communication:serve
+           (ecase listen
+             (:tcp
+              (v:info :forge.network "Listening on ~a:~a" address port)
+              (make-instance 'tcp:host :address address :port port))
+             (:in-process
+              (v:info :forge.network "Starting in-process communication")
+              (make-instance 'in-process:host))))))
+  (v:info :forge.network "Starting ~a..." server)
   (setf (running-p server) T)
   (setf (message-thread server)
         (bt:make-thread (lambda () (message-loop server))
-                        :name (format NIL "forge-~a-message-thread" (name server)))))
+                        :name (format NIL "forge-~(~a~)-message-thread" (name server)))))
 
 (defmethod stop ((server server))
   (when (communication:alive-p server)
     (let ((thread (message-thread server)))
-      (v:info :forge.network "Stopping server ~a..." server)
+      (v:info :forge.network "Stopping ~a..." server)
       (setf (running-p server) NIL)
       (loop for i from 0
             do (unless (bt:thread-alive-p thread)
@@ -60,7 +81,8 @@
                      (setf (message-thread server) NIL))
                    (continue ()
                      :report "Continue waiting.")))
-               (sleep 0.1)))))
+               (sleep 0.1)))
+    (close (connection server))))
 
 (defmethod communication:alive-p ((server server))
   (and (message-thread server)
@@ -80,7 +102,7 @@
   (or (gethash name (machines server))
       (ecase if-does-not-exist
         ((NIL) NIL)
-        (:error (error 'no-such-machine :name name))
+        (:error (error 'no-such-machine :server server :name name))
         (:create (setf (gethash name (machines server)) (make-instance 'machine :name name))))))
 
 (defmethod (setf find-machine) ((machine machine) name (server server) &key (if-exists :error))
@@ -100,7 +122,7 @@
 
 (defmethod client-info (name (server server))
   (or (gethash name (client-info-table server))
-      (error 'no-such-client :name name)))
+      (error 'no-such-client :server server :name name)))
 
 (defmethod (setf client-info) (info name (server server))
   (setf (gethash name (client-info-table server))  info))
@@ -127,6 +149,7 @@
             (existing (gethash name (clients server)))
             (info (client-info name server)))
        (v:debug :forge.network "Attempted connection establishment for ~a" name)
+       (setf (slot-value connection 'communication:name) name)
        (if existing
            (ecase (on-existing-client server)
              (:replace
@@ -148,47 +171,53 @@
                `(let ((,message (communication:receive ,connection :timeout 0.0)))
                   (when ,message
                     ,@body))))
-    (let ((connection (connection server))
-          (pending ())
-          (last-check (get-internal-real-time)))
-      (loop (unless (running-p server)
-              (v:debug :forge.network "Leaving message loop for ~a" server)
-              (return))
-            ;; Check for incoming connection requests
-            (with-message (new-connection connection)
-              (v:debug :forge.network "New incoming connection at ~a" connection)
-              (push new-connection pending))
-            ;; Process pending connections to see if we can upgrade them
-            (dolist (connection pending)
-              (handler-case
-                  (with-message (message connection)
-                    (setf pending (remove connection pending))
-                    (handler-case
-                        (handshake server connection message)
-                      (error (e)
-                        (v:debug :forge.network "Encountered error during handshake: ~a" e)
-                        (v:trace :forge.network e)
-                        (communication:esend connection e message)
-                        (close connection))))
-                (error (e)
-                  (v:debug :forge.network "Encountered weird message during connection establishment.")
-                  (v:trace :forge.network e)
-                  (ignore-errors (close connection))
-                  (setf pending (remove connection pending)))))
-            ;; Process established client messages
-            (loop for client being the hash-values of (clients server)
-                  do (handler-case
-                         (with-message (message (connection client))
-                           (handle message client))
-                       (error ()
-                         (ignore-errors (close client))))
-                     (maintain-connection client))
-            ;; Backoff to make sure we don't overheat
-            (let ((seconds-passed (/ (- (get-internal-real-time) last-check)
-                                     internal-time-units-per-second)))
-              (when (< seconds-passed 0.01)
-                (sleep (- 0.01 seconds-passed))))
-            (setf last-check (get-internal-real-time))))))
+    (unwind-protect
+         (let ((connection (connection server))
+               (pending ())
+               (last-check (get-internal-real-time)))
+           (loop (unless (running-p server)
+                   (return))
+                 ;; Check for incoming connection requests
+                 (with-message (new-connection connection)
+                   (v:debug :forge.network "New incoming connection at ~a" connection)
+                   (push (list new-connection (get-universal-time)) pending))
+                 ;; Process pending connections to see if we can upgrade them
+                 (loop for (connection start-time) in pending
+                       do (support:handler-case*
+                              (with-message (message connection)
+                                (setf pending (remove connection pending :key #'first))
+                                (handler-case
+                                    (handshake server connection message)
+                                  (error (e)
+                                    (v:debug :forge.network "Encountered error during handshake: ~a" e)
+                                    (v:trace :forge.network e)
+                                    (communication:esend connection e message)
+                                    (close connection))))
+                            (error (e)
+                                   (v:debug :forge.network "Encountered weird message during connection establishment.")
+                                   (v:trace :forge.network e)
+                                   (ignore-errors (close connection))
+                                   (setf pending (remove connection pending))))
+                          ;; Drop connections that are just dos-ing us.
+                          (when (< 30 (- (get-universal-time) start-time))
+                            (v:debug :forge.network "Dropping connection ~a: handshake timeout" connection)
+                            (close connection)
+                            (setf pending (remove connection pending :key #'first))))
+                 ;; Process established client messages
+                 (loop for client being the hash-values of (clients server)
+                       do (handler-case
+                              (with-message (message (connection client))
+                                (handle message client))
+                            (error ()
+                              (ignore-errors (close client))))
+                          (maintain-connection client))
+                 ;; Backoff to make sure we don't overheat
+                 (let ((seconds-passed (/ (- (get-internal-real-time) last-check)
+                                          internal-time-units-per-second)))
+                   (when (< seconds-passed 0.01)
+                     (sleep (- 0.01 seconds-passed))))
+                 (setf last-check (get-internal-real-time))))
+      (v:debug :forge.network "Leaving message loop for ~a" server))))
 
 (defclass client (peer)
   ((server :initarg :server :initform (support:arg! :server) :reader server)
