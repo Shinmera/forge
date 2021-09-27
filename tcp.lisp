@@ -15,11 +15,12 @@ Author: Nicolas Hafner <shinmera@tymoon.eu>
     (when socket
       (make-instance 'server-connection :host host :socket socket))))
 
-(defmethod communication:connect ((host host) name &key timeout)
+(defmethod communication:connect ((host host) machine &key id timeout)
   (let ((socket (usocket:socket-connect (address host) (port host)
                                         :timeout timeout
                                         :element-type '(unsigned-byte 8))))
-    (communication:handshake (make-instance 'client-connection :name name :host host :socket socket) name :timeout timeout)))
+    (communication:handshake (make-instance 'client-connection :name id :host host :socket socket)
+                             machine :id id :timeout timeout)))
 
 (defmethod communication:receive ((server server-connection) &key timeout)
   (when (or (null timeout) (usocket:wait-for-input (socket server) :timeout timeout :ready-only T))

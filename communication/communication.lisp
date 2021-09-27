@@ -10,7 +10,7 @@
 (defvar *id-counter* 0)
 
 (support:define-condition* connection-failed (error)
-  (host name report) ("Connection to~%  ~a~%with name ~s failed~@[:~%  ~a~]" host name report))
+  (host report) ("Connection to~%  ~a~%failed~@[:~%  ~a~]" host report))
 
 ;; Init to something hopefully unique on this machine
 (defun init-id-counter (&optional (machine-id (sxhash (machine-instance))))
@@ -23,7 +23,7 @@
   (incf *id-counter*))
 
 (defclass host () ())
-(defgeneric connect (host name &key timeout)) ; => CONNECTION
+(defgeneric connect (host machine &key id timeout)) ; => CONNECTION
 (defgeneric serve (host)) ; => CONNECTION
 (defgeneric connections (host)) ; => (CONNECTION)
 
@@ -78,7 +78,8 @@
   (reply! connection request 'pong))
 
 (defclass connect (command)
-  ((name :initarg :name :initform (support:arg! :name) :reader name)
+  ((machine :initarg :machine :initform (support:arg! :machine) :reader machine)
+   (client-id :initarg :client-id :initform NIL :reader client-id)
    (version :initarg :version :initform *version* :reader version)))
 
 (defclass error-message (reply)
@@ -151,15 +152,15 @@
     (error (e)
       (esend connection e))))
 
-(defun handshake (connection name &key timeout)
-  (let ((message (send! connection 'connect :name name)))
+(defun handshake (connection machine &key id timeout)
+  (let ((message (send! connection 'connect :machine machine :client-id id)))
     (let ((message (receive connection :timeout timeout)))
       (etypecase message
         (ok
          connection)
         (null
-         (error 'connection-failed :host (host connection) :name name :report "Timeout reached."))
+         (error 'connection-failed :host (host connection) :report "Timeout reached."))
         (error-message
-         (error 'connection-failed :host (host connection) :name name :report (report message)))
+         (error 'connection-failed :host (host connection) :report (report message)))
         (warning-message
          (warn "Trouble connecting: ~a" (report message)))))))

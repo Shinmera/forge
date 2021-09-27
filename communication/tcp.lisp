@@ -26,10 +26,11 @@
   ((address :initarg :address :initform "127.0.0.1" :reader address)
    (port :initarg :port :initform DEFAULT-PORT :reader port)))
 
-(defmethod communication:connect ((host host) name &key timeout)
+(defmethod communication:connect ((host host) machine &key id timeout)
   (let ((socket (socket:open-tcp (address host) (port host) :timeout timeout)))
     (when socket
-      (communication:handshake (make-instance 'client-connection :name name :host host :socket socket) name :timeout timeout))))
+      (communication:handshake (make-instance 'client-connection :name id :host host :socket socket)
+                               machine :id id :timeout timeout))))
 
 (defclass connection (communication:connection)
   ((host :initarg :host :initform (error "HOST required.") :reader communication:host)

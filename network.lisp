@@ -32,7 +32,6 @@
    (connection :initform NIL)
 
    (machines :initform (make-hash-table :test 'equal) :reader machines)
-   (client-info-table :initform (make-hash-table :test 'equal) :reader client-info-table)
    (clients :initform (make-hash-table :test 'equal) :reader clients)
    (on-existing-client :initarg :on-existing-client :initform :replace :accessor on-existing-client)
    (message-thread :initform NIL :accessor message-thread)
@@ -91,8 +90,6 @@
 (defgeneric find-machine (name server &key if-does-not-exist))
 (defgeneric (setf find-machine) (machine name server &key if-exists))
 (defgeneric delete-machine (name server))
-(defgeneric client-info (name server))
-(defgeneric (setf client-info) (info name server))
 ;; This function only works with the server object as we have to use the property
 ;; of actual real files on the file system to determine changes, which only works
 ;; on the local instance of the server.
@@ -120,16 +117,6 @@
   (remhash name *machines*)
   name)
 
-(defmethod client-info (name (server server))
-  (or (gethash name (client-info-table server))
-      (error 'no-such-client :server server :name name)))
-
-(defmethod (setf client-info) (info name (server server))
-  (setf (gethash name (client-info-table server))  info))
-
-(defmethod (setf client-info) ((info null) name (server server))
-  (remhash name (client-info-table server)))
-
 (defmethod artefact-changed-p ((artefact artefact) (server server))
   ;; Better would be checking the hash to track changes on sub-second granularity
   ;; or changes that mess with the file timestamp.
@@ -145,9 +132,9 @@
 (defmethod handshake ((server server) (connection communication:connection) (message communication:connect))
   (case (communication:version message)
     (0
-     (let* ((name (communication:name message))
-            (existing (gethash name (clients server)))
-            (info (client-info name server)))
+     (let* ((name (list (communication:machine message) (or (communication:client-id message) (random #xFFFF))))
+            (machine (find-machine (communication:machine message) server))
+            (existing (gethash name (clients server))))
        (v:debug :forge.network "Attempted connection establishment for ~a" name)
        (setf (slot-value connection 'communication:name) name)
        (if existing
@@ -159,7 +146,7 @@
              (:error
               (error 'client-already-exists :name name)))
            (communication:reply! connection message 'communication:ok))
-       (let ((client (apply #'make-instance 'client :connection connection :server server :name name info)))
+       (let ((client (make-instance 'client :connection connection :server server :name name :machine machine)))
          (v:info :forge.network "Established new client connection ~a" client)
          (setf (gethash name (clients server)) client))))
     (T

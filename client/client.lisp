@@ -20,8 +20,8 @@
             ((:debug :trace) *debug-io*))
           "FORGE [~5a] ~?" level message args))
 
-(defun try-connect (host name &key timeout)
-  (support:handler-case* (communication:connect host name :timeout timeout)
+(defun try-connect (host machine &key id timeout)
+  (support:handler-case* (communication:connect host machine :id id :timeout timeout)
     (error (e)
            (log :error "Failed to connect to~%  ~a~%~a" host e)
            NIL)))
@@ -29,7 +29,8 @@
 (defun start (&key (address "127.0.0.1")
                    (port TCP:DEFAULT-PORT)
                    (timeout 1.0)
-                   (name (machine-instance))
+                   (machine (machine-instance))
+                   id
                    host
                    (if-unavailable :launch)
                    (launch-method :binary)
@@ -39,12 +40,12 @@
   (support:with-retry-restart ()
     (let ((host (or host (make-instance 'tcp:host :address address :port port))))
       (loop (with-simple-restart (retry "Retry connecting.")
-              (let ((connection (or (try-connect host name :timeout timeout)
+              (let ((connection (or (try-connect host machine :id id :timeout timeout)
                                     (ecase if-unavailable
                                       ((NIL)
                                        NIL)
                                       (:error
-                                       (error 'communication:connection-failed :host host :name name :report NIL))
+                                       (error 'communication:connection-failed :host host :report NIL))
                                       (:launch
                                        (setf host (apply #'launch-server launch-method :address address :port port launch-arguments))
                                        (invoke-restart 'retry))))))
@@ -63,7 +64,7 @@
   (let ((host (communication:host connection)))
     (log :info "Trying to reconnect to~%  ~a" host)
     (with-simple-restart (abort "Exit reconnection.")
-      (loop (setf connection (try-connect host (communication:name connection)))
+      (loop (setf connection (try-connect host (error "FIXME")))
             (when connection (return connection))
             (etypecase on-reconnect-failure
               (null (return))

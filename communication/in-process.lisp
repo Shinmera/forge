@@ -21,11 +21,10 @@
   (let ((sentinel (cons NIL NIL)))
     (setf (slot-value host 'queue) (cons sentinel sentinel))))
 
-(defmethod communication:connect ((host host) name &key timeout)
-  (declare (ignore timeout))
+(defmethod communication:connect ((host host) machine &key id timeout)
+  (declare (ignore id timeout))
   (ecase (state host)
     (:serving
-     (setf (slot-value host 'communication:name) name)
      (setf (state host) :connected)
      host)
     (:connected

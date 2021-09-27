@@ -289,7 +289,7 @@
 
 (define-slot-coder ok (id))
 (define-slot-coder exit (id))
-(define-slot-coder connect (id name version))
+(define-slot-coder connect (id machine client-id version))
 (define-slot-coder ping (id clock))
 (define-slot-coder pong (id clock))
 (define-slot-coder error-message (id condition-type arguments report))

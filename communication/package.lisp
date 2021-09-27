@@ -40,7 +40,8 @@
    #:ping
    #:pong
    #:connect
-   #:name
+   #:machine
+   #:client-id
    #:version
    #:error-message
    #:warning-message
