@@ -35,6 +35,7 @@
    (clients :initform (make-hash-table :test 'equal) :reader clients)
    (on-existing-client :initarg :on-existing-client :initform :replace :accessor on-existing-client)
    (message-thread :initform NIL :accessor message-thread)
+   (promise-thread :initform NIL :accessor promise-thread)
    (running-p :initform T :accessor running-p)))
 
 (defmethod initialize-instance :after ((server server) &key)
@@ -59,33 +60,24 @@
   (setf (running-p server) T)
   (setf (message-thread server)
         (bt:make-thread (lambda () (message-loop server))
-                        :name (format NIL "forge-~(~a~)-message-thread" (name server)))))
+                        :name (format NIL "forge-~(~a~)-message-thread" (name server))))
+  (setf (promise-thread server)
+        (bt:make-thread (lambda () (promise-loop server))
+                        :name (format NIL "forge-~(~a~)-promise-thread" (name server)))))
 
 (defmethod stop ((server server))
   (when (communication:alive-p server)
-    (let ((thread (message-thread server)))
-      (v:info :forge.network "Stopping ~a..." server)
-      (setf (running-p server) NIL)
-      (loop for i from 0
-            do (unless (bt:thread-alive-p thread)
-                 (return))
-               (when (<= 10 i)
-                 (restart-case (error "Message thread is not shutting down!")
-                   (interrupt (&optional (function #'break))
-                     :report "Try to interrupt the thread."
-                     (bt:interrupt-thread thread function))
-                   (abort ()
-                     :report "Kill and forget the thread."
-                     (bt:destroy-thread thread)
-                     (setf (message-thread server) NIL))
-                   (continue ()
-                     :report "Continue waiting.")))
-               (sleep 0.1)))
-    (close (connection server))))
+    (v:info :forge.network "Stopping ~a..." server)
+    (setf (running-p server) NIL)
+    (unwind-protect
+         (progn
+           (when (message-thread server) (wait-for-thread-exit (message-thread server)))
+           (when (promise-thread server) (wait-for-thread-exit (promise-thread server))))
+      (close (connection server)))))
 
 (defmethod communication:alive-p ((server server))
-  (and (message-thread server)
-       (bt:thread-alive-p (message-thread server))))
+  (or (and (message-thread server) (bt:thread-alive-p (message-thread server)))
+      (and (promise-thread server) (bt:thread-alive-p (promise-thread server)))))
 
 (defgeneric find-machine (name server &key if-does-not-exist))
 (defgeneric (setf find-machine) (machine name server &key if-exists))
@@ -159,52 +151,60 @@
                   (when ,message
                     ,@body))))
     (unwind-protect
-         (let ((connection (connection server))
-               (pending ())
-               (last-check (get-internal-real-time)))
-           (loop (unless (running-p server)
-                   (return))
-                 ;; Check for incoming connection requests
-                 (with-message (new-connection connection)
-                   (v:debug :forge.network "New incoming connection at ~a" connection)
-                   (push (list new-connection (get-universal-time)) pending))
-                 ;; Process pending connections to see if we can upgrade them
-                 (loop for (connection start-time) in pending
-                       do (support:handler-case*
-                              (with-message (message connection)
-                                (setf pending (remove connection pending :key #'first))
-                                (handler-case
-                                    (handshake server connection message)
-                                  (error (e)
-                                    (v:debug :forge.network "Encountered error during handshake: ~a" e)
-                                    (v:trace :forge.network e)
-                                    (communication:esend connection e message)
-                                    (close connection))))
+         (with-event-loop ((connection (connection server))
+                           (pending ()))
+           (unless (running-p server)
+             (return))
+           ;; Check for incoming connection requests
+           (with-message (new-connection connection)
+             (v:debug :forge.network "New incoming connection at ~a" connection)
+             (push (list new-connection (get-universal-time)) pending))
+           ;; Process pending connections to see if we can upgrade them
+           (loop for (connection start-time) in pending
+                 do (support:handler-case*
+                        (with-message (message connection)
+                          (setf pending (remove connection pending :key #'first))
+                          (handler-case
+                              (handshake server connection message)
                             (error (e)
-                                   (v:debug :forge.network "Encountered weird message during connection establishment.")
-                                   (v:trace :forge.network e)
-                                   (ignore-errors (close connection))
-                                   (setf pending (remove connection pending))))
-                          ;; Drop connections that are just dos-ing us.
-                          (when (< 30 (- (get-universal-time) start-time))
-                            (v:debug :forge.network "Dropping connection ~a: handshake timeout" connection)
-                            (close connection)
-                            (setf pending (remove connection pending :key #'first))))
-                 ;; Process established client messages
-                 (loop for client being the hash-values of (clients server)
-                       do (handler-case
-                              (with-message (message (connection client))
-                                (handle message client))
-                            (error ()
-                              (ignore-errors (close client))))
-                          (maintain-connection client))
-                 ;; Backoff to make sure we don't overheat
-                 (let ((seconds-passed (/ (- (get-internal-real-time) last-check)
-                                          internal-time-units-per-second)))
-                   (when (< seconds-passed 0.01)
-                     (sleep (- 0.01 seconds-passed))))
-                 (setf last-check (get-internal-real-time))))
+                              (v:debug :forge.network "Encountered error during handshake: ~a" e)
+                              (v:trace :forge.network e)
+                              (communication:esend connection e message)
+                              (close connection))))
+                      (error (e)
+                             (v:debug :forge.network "Encountered weird message during connection establishment.")
+                             (v:trace :forge.network e)
+                             (ignore-errors (close connection))
+                             (setf pending (remove connection pending))))
+                    ;; Drop connections that are just dos-ing us.
+                    (when (< 30 (- (get-universal-time) start-time))
+                      (v:debug :forge.network "Dropping connection ~a: handshake timeout" connection)
+                      (close connection)
+                      (setf pending (remove connection pending :key #'first))))
+           ;; Process established client messages
+           (loop for client being the hash-values of (clients server)
+                 do (handler-case
+                        (with-message (message (connection client))
+                          (handle message client))
+                      (error ()
+                        (ignore-errors (close client))))
+                    (maintain-connection client)))
       (v:debug :forge.network "Leaving message loop for ~a" server))))
+
+(defmethod promise-loop ((server server))
+  (v:debug :forge.network "Entering promise loop for ~a" server)
+  (unwind-protect
+       (with-event-loop ()
+         (unless (running-p server)
+           (return))
+         (promise:tick-all (get-universal-time)))
+    (v:debug :forge.network "Leaving promise loop for ~a" server)))
+
+(defmacro with-promise ((server) &body body)
+  `(promise:then (promise:pend :success T)
+                 (lambda (_)
+                   (declare (ignore _))
+                   (promise:pend :success (progn ,@body)))))
 
 (defclass client (peer)
   ((server :initarg :server :initform (support:arg! :server) :reader server)
@@ -223,6 +223,7 @@
 (defmethod handle ((message communication:reply) (client client))
   (let ((callback (pophash (communication:id message) (callback-table client))))
     (etypecase callback
+      (null)
       (function (funcall callback message))
       (promise:promise
        (etypecase message
@@ -232,6 +233,21 @@
                                         (communication:arguments message))))
          (T
           (promise:succeed callback message)))))))
+
+(defmethod handle ((message communication:effect-request) (client client))
+  (promise:-> (with-promise ((server client))
+                (let* ((effect (find-effect *database*
+                                            (communication:effect-type message)
+                                            (communication:parameters message)
+                                            (communication:version message)))
+                       (plan (compute-plan effect (make-instance 'basic-policy)))
+                       (executor (ecase (communication:execute-on message)
+                                   (:self (make-instance 'linear-executor :client client))
+                                   (:any (make-instance 'linear-executor :client (alexandria:random-elt (clients (server client)))))
+                                   (:all (make-instance 'parallel-executor)))))
+                  (execute plan executor)))
+    (:then () (communication:reply! (connection client) message 'communication:ok))
+    (:handle (e) (communication:esend (connection client) e message))))
 
 (defmethod maintain-connection ((client client))
   (let ((timeout (- (get-universal-time) (car (last-message client)))))
