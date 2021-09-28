@@ -34,7 +34,8 @@
                    host
                    (if-unavailable :launch)
                    (launch-method :binary)
-                   (launch-arguments ()))
+                   (launch-arguments ())
+                   (dedicate T))
   (when (connected-p)
     (error 'already-connected :connection *forge-connection*))
   (support:with-retry-restart ()
@@ -50,11 +51,16 @@
                                        (setf host (apply #'launch-server launch-method :address address :port port launch-arguments))
                                        (invoke-restart 'retry))))))
                 (setf *forge-connection* connection)
-                (return connection)))))))
+                (if dedicate
+                    (return
+                      (unwind-protect (command-loop connection)
+                        (ignore-errors (close connection))
+                        (setf *forge-connection* NIL)))
+                    (return connection))))))))
 
 (defun stop ()
   (when (connected-p)
-    (close *forge-connection*)
+    (ignore-errors (close *forge-connection*))
     (setf *forge-connection* NIL)))
 
 (defun connected-p ()

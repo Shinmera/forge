@@ -170,39 +170,60 @@
   (wu32 (char-code value) stream)
   (code-char (ru32 stream)))
 
-(define-encoding string (value stream)
-  (progn (wu32 (length value) stream)
-         ;; FIXME: convert to utf-8
-         (loop for char across value
-               do (wu32 (char-code char) stream)))
-  (let ((arr (make-array (ru32 stream) :element-type 'character)))
-    (dotimes (i (length arr) arr)
-      (setf (aref arr i) (code-char (ru32 stream))))))
+(macrolet ((stringgen ()
+             (let ((base-id (ensure-encoding-type-id 'base-string))
+                   (gen-id (ensure-encoding-type-id 'string)))
+               `(progn
+                  (defmethod encode-message ((value string) (stream stream))
+                    (etypecase value
+                      (base-string
+                       (wu16 ,base-id stream)
+                       (wu32 (length value) stream)
+                       (loop for element across value
+                             do (wu8 (char-code element) stream)))
+                      (string
+                       (wu16 ,gen-id stream)
+                       (wu32 (length value) stream)
+                       (loop for element across value
+                             do (wu32 (char-code element) stream)))))
+                  (defmethod decode-message ((id (eql ,base-id)) (stream stream))
+                    (let ((arr (make-array (ru32 stream) :element-type 'base-char)))
+                      (dotimes (i (length arr) arr)
+                        (setf (aref arr i) (code-char (ru8 stream))))
+                      arr))
+                  (defmethod decode-message ((id (eql ,gen-id)) (stream stream))
+                    (let ((arr (make-array (ru32 stream) :element-type 'character)))
+                      (dotimes (i (length arr) arr)
+                        (setf (aref arr i) (code-char (ru32 stream))))))))))
+  (stringgen))
 
 ;; FIXME: compressed bit vector support
 ;; FIXME: fill-pointer support
-(let ((ub8-id (ensure-encoding-type-id 'ub8-vector))
-      (gen-id (ensure-encoding-type-id 'vector)))
-  (defmethod encode-message ((value vector) (stream stream))
-    (typecase value
-      ((vector (unsigned-byte 8))
-       (wu16 ub8-id stream)
-       (wu32 (length value) stream)
-       (loop for element across value
-             do (wu8 element stream)))
-      (T
-       (wu16 gen-id stream)
-       (wu32 (length value) stream)
-       (loop for object across value
-             do (encode-message object stream)))))
-  (defmethod decode-message ((id (eql ub8-id)) (stream stream))
-    (let ((arr (make-array (ru32 stream) :element-type '(unsigned-byte 8))))
-      (read-sequence arr stream)
-      arr))
-  (defmethod decode-message ((id (eql gen-id)) (stream stream))
-    (let ((arr (make-array (ru32 stream))))
-      (dotimes (i (length arr) arr)
-        (setf (aref arr i) (decode-message (ru16 stream) stream))))))
+(macrolet ((vecgen ()
+             (let ((ub8-id (ensure-encoding-type-id 'ub8-vector))
+                   (gen-id (ensure-encoding-type-id 'vector)))
+               `(progn
+                  (defmethod encode-message ((value vector) (stream stream))
+                    (etypecase value
+                      ((vector (unsigned-byte 8))
+                       (wu16 ,ub8-id stream)
+                       (wu32 (length value) stream)
+                       (loop for element across value
+                             do (wu8 element stream)))
+                      (vector
+                       (wu16 ,gen-id stream)
+                       (wu32 (length value) stream)
+                       (loop for object across value
+                             do (encode-message object stream)))))
+                  (defmethod decode-message ((id (eql ,ub8-id)) (stream stream))
+                    (let ((arr (make-array (ru32 stream) :element-type '(unsigned-byte 8))))
+                      (read-sequence arr stream)
+                      arr))
+                  (defmethod decode-message ((id (eql ,gen-id)) (stream stream))
+                    (let ((arr (make-array (ru32 stream))))
+                      (dotimes (i (length arr) arr)
+                        (setf (aref arr i) (decode-message (ru16 stream) stream)))))))))
+  (vecgen))
 
 (define-encoding array (value stream)
   (let ((dimensions (array-dimensions value)))
@@ -296,6 +317,7 @@
 (define-slot-coder warning-message (id condition-type arguments report))
 (define-slot-coder eval-request (id form))
 (define-slot-coder return-message (id value))
+(define-slot-coder effect-request (effect-type parameters version execute-on))
 
 (define-encoding artefact (value stream)
   (progn

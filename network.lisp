@@ -43,6 +43,31 @@
     (setf (slot-value server 'machine) (find-machine :server server :if-does-not-exist :create)))
   (setf *server* server))
 
+(defgeneric start (server &key))
+(defgeneric stop (server))
+(defgeneric find-machine (name server &key if-does-not-exist))
+(defgeneric (setf find-machine) (machine name server &key if-exists))
+(defgeneric delete-machine (name server))
+;; This function only works with the server object as we have to use the property
+;; of actual real files on the file system to determine changes, which only works
+;; on the local instance of the server.
+(defgeneric artefact-changed-p (artefact server))
+(defgeneric message-loop (server))
+(defgeneric promise-loop (server))
+
+(defmethod start ((default (eql T)) &rest initargs &key &allow-other-keys)
+  (let ((start-args ()) (init-args ()))
+    (loop for (key value) on initargs by #'cddr
+          do (cond ((find key '(:listen :address :port))
+                    (push value start-args)
+                    (push key start-args))
+                   (T
+                    (push value init-args)
+                    (push key init-args))))
+    (unless *server*
+      (apply #'make-instance 'server init-args))
+    (apply #'start *server* start-args)))
+
 (defmethod start ((server server) &key (listen :tcp) (address "127.0.0.1") (port tcp:DEFAULT-PORT))
   (when (communication:alive-p server)
     (error "server is already running."))
@@ -65,6 +90,9 @@
         (bt:make-thread (lambda () (promise-loop server))
                         :name (format NIL "forge-~(~a~)-promise-thread" (name server)))))
 
+(defmethod stop ((default (eql T)))
+  (stop *server*))
+
 (defmethod stop ((server server))
   (when (communication:alive-p server)
     (v:info :forge.network "Stopping ~a..." server)
@@ -73,19 +101,12 @@
          (progn
            (when (message-thread server) (wait-for-thread-exit (message-thread server)))
            (when (promise-thread server) (wait-for-thread-exit (promise-thread server))))
-      (close (connection server)))))
+      (close (connection server))
+      (setf (slot-value server 'connection) NIL))))
 
 (defmethod communication:alive-p ((server server))
   (or (and (message-thread server) (bt:thread-alive-p (message-thread server)))
       (and (promise-thread server) (bt:thread-alive-p (promise-thread server)))))
-
-(defgeneric find-machine (name server &key if-does-not-exist))
-(defgeneric (setf find-machine) (machine name server &key if-exists))
-(defgeneric delete-machine (name server))
-;; This function only works with the server object as we have to use the property
-;; of actual real files on the file system to determine changes, which only works
-;; on the local instance of the server.
-(defgeneric artefact-changed-p (artefact server))
 
 (defmethod find-machine (name (server server) &key (if-does-not-exist :error))
   (or (gethash name (machines server))
@@ -184,7 +205,7 @@
            ;; Process established client messages
            (loop for client being the hash-values of (clients server)
                  do (handler-case
-                        (with-message (message (connection client))
+                        (with-message (message client)
                           (handle message client))
                       (error ()
                         (ignore-errors (close client))))
@@ -204,7 +225,7 @@
   `(promise:then (promise:pend :success T)
                  (lambda (_)
                    (declare (ignore _))
-                   (promise:pend :success (progn ,@body)))))
+                   ,@body)))
 
 (defclass client (peer)
   ((server :initarg :server :initform (support:arg! :server) :reader server)
@@ -216,6 +237,16 @@
     (setf (slot-value client 'machine) (find-machine (machine-client) server))))
 
 (defgeneric handle (message client))
+
+(defmethod communication:send (message (client client))
+  (v:trace :forge.network "~a <-- ~a" (name client) message)
+  (communication:send message (connection client)))
+
+(defmethod communication:receive ((client client) &key timeout)
+  (let ((message (communication:receive (connection client) :timeout timeout)))
+    (when message
+      (v:trace :forge.network "~a --> ~a" (name client) message))
+    message))
 
 (defmethod handle :before ((message communication:message) (client client))
   (setf (last-message client) (cons (get-universal-time) 0)))
@@ -249,22 +280,35 @@
     (:then () (communication:reply! (connection client) message 'communication:ok))
     (:handle (e) (communication:esend (connection client) e message))))
 
+(defun promise-reply (message client &key (lifetime 120) send)
+  (let ((promise (promise:pend :lifetime lifetime)))
+    (setf (gethash (communication:id message) (callback-table client)) promise)
+    (when send (communication:send message (connection client)))
+    promise))
+
+(defmacro with-client-eval ((client &key (lifetime 120)) &body body)
+  `(promise-reply (make-instance 'communication:eval-request :form (progn ,@body))
+                  ,client :lifetime ,lifetime :send T))
+
 (defmethod maintain-connection ((client client))
   (let ((timeout (- (get-universal-time) (car (last-message client)))))
     (cond ((< 30 timeout)
            (when (< (cdr (last-message client)) 1)
              (setf (cdr (last-message client)) 1)
-             (communication:send! (connection client) 'communication:ping)))
+             (communication:send! client 'communication:ping)))
           ((< 75 timeout)
            (v:debug :forge.network "Connection unstable: no reply in 75 seconds for ~a..."  client)
            (when (< (cdr (last-message client)) 2)
              (setf (cdr (last-message client)) 2)
-             (communication:send! (connection client) 'communication:ping)))
+             (communication:send! client 'communication:ping)))
           ((< 120 timeout)
            (v:warn :forge.network "Dropping client ~a as we have not received a message in 2 minutes." client)
            (close client)))))
 
 (defmethod close ((client client) &key abort)
-  (v:info :forge "Closing connection to ~a" client)
+  (v:info :forge.network "Closing connection to ~a" client)
   (remhash (name client) (clients (server client)))
   (close (connection client) :abort abort))
+
+(org.shirakumo.forge.client:request-effect 'print-effect 4)
+(print (alexandria:hash-table-alist promise::*promises*))

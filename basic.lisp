@@ -274,10 +274,7 @@
           for promise = (execute step executor)
           do (when (typep promise 'promise:promise)
                (loop (case (promise:state promise)
-                       (:pending (communication:handle1 (connection (client executor)) :timeout 1))
+                       (:pending)
                        (:success (return))
                        (:failure (error 'execution-failed :step step :error (promise::value promise)))
-                       (:timeout (error 'execution-timed-out :step step)))
-                     (promise:tick-all (get-universal-time)))))))
-
-
+                       (:timeout (error 'execution-timed-out :step step))))))))
