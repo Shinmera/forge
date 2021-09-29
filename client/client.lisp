@@ -121,11 +121,22 @@
   (prune-package (remove-if-not #'forge-package-p (list-all-packages))))
 
 (defun request-effect (effect-type parameters &key (version T) (execute-on :self) (connection *forge-connection*))
+  (unless connection
+    (setf connection (start :dedicate NIL)))
   (communication:send! connection 'communication:effect-request
-                       :effect-type effect-type
+                       :effect-type (etypecase effect-type
+                                      (symbol effect-type)
+                                      (communication:dummy-symbol effect-type)
+                                      (string (let ((colon (position #\: effect-type)))
+                                                (communication:make-dummy-symbol
+                                                 (subseq effect-type 0 colon) (subseq effect-type (1+ colon)))))
+                                      (list (communication:make-dummy-symbol
+                                             (first effect-type) (second effect-type))))
                        :parameters parameters
                        :version version
-                       :execute-on execute-on))
+                       :execute-on execute-on)
+  ;; FIXME: how to loop only until we get the OK for the above request?
+  (command-loop connection))
 
 (defun load-project (project &key (version T) (connection *forge-connection*))
   (request-effect (communication:make-dummy-symbol "ORG.SHIRAKUMO.FORGE.MODULES.LISP" "LOAD-EFFECT")

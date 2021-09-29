@@ -14,7 +14,7 @@ Author: Nicolas Hafner <shinmera@tymoon.eu>
   ())
 (defclass print-effect (effect) ())
 
-(defmethod supported-operations ((message message))
+(defmethod supported-operations append ((message message))
   '(print-op))
 
 (defmethod dependencies ((op print-op) (c message))
@@ -38,11 +38,6 @@ Author: Nicolas Hafner <shinmera@tymoon.eu>
 (make-instance 'message :name 1 :message "C" :depends-on '(2) :version 3)
 (make-instance 'message :name 2 :message "2" :depends-on '(0))
 (make-instance 'message :name 3 :message "3" :depends-on '((1 ([ 1 2)) 2))
-(make-instance 'message :name 4 :message "4" :depends-on final-dependency)
+(make-instance 'message :name 4 :message "4" :depends-on '(3))
 
-(defun run-test (final-dependency)
-  
-  (let ((plan (compute-plan (find-effect *database* 'print-effect 4 (parse-constraint T))
-                            (make-instance 'basic-policy)))
-        (executor (make-instance 'basic-executor)))
-    (execute plan executor)))
+#++ (org.shirakumo.forge.client:request-effect "ORG.SHIRAKUMO.FORGE:PRINT-EFFECT" 4)

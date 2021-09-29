@@ -193,10 +193,10 @@
                               (communication:esend connection e message)
                               (close connection))))
                       (error (e)
-                             (v:debug :forge.network "Encountered weird message during connection establishment.")
-                             (v:trace :forge.network e)
-                             (ignore-errors (close connection))
-                             (setf pending (remove connection pending))))
+                        (v:debug :forge.network "Encountered weird message during connection establishment.")
+                        (v:trace :forge.network e)
+                        (ignore-errors (close connection))
+                        (setf pending (remove connection pending))))
                     ;; Drop connections that are just dos-ing us.
                     (when (< 30 (- (get-universal-time) start-time))
                       (v:debug :forge.network "Dropping connection ~a: handshake timeout" connection)
@@ -309,6 +309,3 @@
   (v:info :forge.network "Closing connection to ~a" client)
   (remhash (name client) (clients (server client)))
   (close (connection client) :abort abort))
-
-(org.shirakumo.forge.client:request-effect 'print-effect 4)
-(print (alexandria:hash-table-alist promise::*promises*))
