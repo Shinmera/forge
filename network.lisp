@@ -204,10 +204,12 @@
                       (setf pending (remove connection pending :key #'first))))
            ;; Process established client messages
            (loop for client being the hash-values of (clients server)
-                 do (handler-case
+                 do (support:handler-case*
                         (with-message (message client)
                           (handle message client))
-                      (error ()
+                      (error (e)
+                        (v:debug :forge.network "Encountered error handling message: ~a" e)
+                        (v:trace :forge.network e)
                         (ignore-errors (close client))))
                     (maintain-connection client)))
       (v:debug :forge.network "Leaving message loop for ~a" server))))

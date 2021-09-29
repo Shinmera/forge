@@ -350,8 +350,8 @@
   (encode-payload value stream))
 
 (defmethod encode-payload ((value dummy-symbol) (stream stream))
-  (encode-payload (dummy-symbol-package value) stream)
-  (encode-payload (dummy-symbol-name value) stream))
+  (encode-message (dummy-symbol-package value) stream)
+  (encode-message (dummy-symbol-name value) stream))
 
 (define-encoding dummy-object (value stream)
   (encode (dummy-object-description value))
@@ -362,4 +362,4 @@
   (encode-payload object stream))
 
 (defmethod encode-payload (object (stream stream))
-  (encode-payload (princ-to-string object) stream))
+  (encode-message (princ-to-string object) stream))
