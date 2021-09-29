@@ -17,7 +17,7 @@ Author: Nicolas Hafner <shinmera@tymoon.eu>
 (defmethod supported-operations append ((message message))
   '(print-op))
 
-(defmethod dependencies ((op print-op) (c message))
+(defmethod dependencies append ((op print-op) (c message))
   (loop for spec in (depends-on c)
         collect (if (listp spec)
                     (destructuring-bind (parameters version) spec
