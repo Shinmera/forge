@@ -53,7 +53,9 @@
   (communication:decode-message T (socket connection)))
 
 (defmethod communication:send (message (connection client-connection))
-  (communication:encode-message message (socket connection)))
+  (let ((socket (socket connection)))
+    (communication:encode-message message socket)
+    (force-output socket)))
 
 (defclass server-connection (connection communication:server-connection)
   ((connections :initform () :accessor connections :reader communication:connections)))

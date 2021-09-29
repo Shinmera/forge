@@ -113,12 +113,12 @@
   (cons (decode) (decode)))
 
 (define-encoding symbol (value stream)
-  (progn (encode* (if (symbol-package value)
+  (progn (encode (if (symbol-package value)
                       (package-name (symbol-package value))
                       ""))
-         (encode* (symbol-name value)))
-  (let ((package (decode (encoding-type-id 'string)))
-        (name (decode (encoding-type-id 'string))))
+         (encode (symbol-name value)))
+  (let ((package (decode))
+        (name (decode)))
     (if (string= package "")
         (make-symbol name)
         (or (let ((maybe-package (find-package package)))
@@ -174,6 +174,8 @@
              (let ((base-id (ensure-encoding-type-id 'base-string))
                    (gen-id (ensure-encoding-type-id 'string)))
                `(progn
+                  (setf (encoding-type-id 'base-string) ,base-id)
+                  (setf (encoding-type-id 'string) ,gen-id)
                   (defmethod encode-message ((value string) (stream stream))
                     (etypecase value
                       (base-string
@@ -203,6 +205,8 @@
              (let ((ub8-id (ensure-encoding-type-id 'ub8-vector))
                    (gen-id (ensure-encoding-type-id 'vector)))
                `(progn
+                  (setf (encoding-type-id 'ub8-vector) ,ub8-id)
+                  (setf (encoding-type-id 'vector) ,gen-id)
                   (defmethod encode-message ((value vector) (stream stream))
                     (etypecase value
                       ((vector (unsigned-byte 8))
@@ -296,15 +300,15 @@
                    :directory (decode))))
 
 (define-encoding package (value stream)
-  (encode* (package-name value))
-  (let ((name (decode (encoding-type-id 'string))))
+  (encode (package-name value))
+  (let ((name (decode)))
     (or (find-package name)
         (error "Package was transferred that does not exist: ~%  ~s" name))))
 
 ;; KLUDGE: round-trip through print/read since we can't read these values out normally.
 (define-encoding random-state (value stream)
-  (encode* (with-standard-io-syntax (prin1-to-string value)))
-  (with-standard-io-syntax (read-from-string (decode (encoding-type-id 'string)))))
+  (encode (with-standard-io-syntax (prin1-to-string value)))
+  (with-standard-io-syntax (read-from-string (decode))))
 
 ;; What we can't do: functions, readtables, restarts, streams.
 
@@ -321,7 +325,7 @@
 
 (define-encoding artefact (value stream)
   (progn
-    (encode* (artefact-target value))
+    (encode (artefact-target value))
     (with-open-file (input (artefact-source value) :direction :input
                                                    :element-type '(unsigned-byte 8))
       (let ((buffer (make-array 4096 :element-type '(unsigned-byte 8))))
@@ -329,7 +333,7 @@
         (loop for read = (read-sequence buffer input)
               while (< 0 read)
               do (write-sequence buffer stream :end read)))))
-  (let ((target (decode (encoding-type-id 'string))))
+  (let ((target (decode)))
     (with-open-file (output target :direction :output
                                    :element-type '(unsigned-byte 8)
                                    :if-exists :supersede)
@@ -350,8 +354,8 @@
   (encode-payload (dummy-symbol-name value) stream))
 
 (define-encoding dummy-object (value stream)
-  (encode* (dummy-object-description value))
-  (make-dummy-object (decode (encoding-type-id 'string))))
+  (encode (dummy-object-description value))
+  (make-dummy-object (decode)))
 
 (defmethod encode-message (object (stream stream))
   (wu16 #.(encoding-type-id 'dummy-object) stream)
