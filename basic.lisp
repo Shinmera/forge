@@ -269,12 +269,5 @@
       sequence)))
 
 (defmethod execute ((plan plan) (executor linear-executor))
-  (let ((sequence (compute-step-sequence plan)))
-    (loop for step in sequence
-          for promise = (execute step executor)
-          do (when (typep promise 'promise:promise)
-               (loop (case (promise:state promise)
-                       (:pending)
-                       (:success (return))
-                       (:failure (error 'execution-failed :step step :error (promise::value promise)))
-                       (:timeout (error 'execution-timed-out :step step))))))))
+  (promise:do-promised (step (compute-step-sequence plan))
+    (execute step executor)))
