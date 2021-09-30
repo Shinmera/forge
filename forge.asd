@@ -22,7 +22,8 @@
                (:file "artefact")
                (:file "network")
                (:file "plan")
-               (:file "basic"))
+               (:file "basic")
+               (:file "test"))
   :depends-on (:forge-support
                :forge-communication
                :closer-mop
@@ -30,4 +31,5 @@
                :usocket
                :documentation-utils
                :bordeaux-threads
-               :verbose))
+               :verbose
+               :alexandria))

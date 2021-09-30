@@ -87,6 +87,10 @@
    (arguments :initarg :arguments :initform () :reader arguments)
    (report :initarg :report :initform NIL :reader report)))
 
+(defmethod print-object ((request error-message) stream)
+  (print-unreadable-object (request stream :type T :identity T)
+    (format stream "~s" (condition-type request))))
+
 (defclass warning-message (reply)
   ((condition-type :initarg :condition-type :initform (support:arg! :condition-type) :reader condition-type)
    (arguments :initarg :arguments :initform () :reader arguments)
@@ -105,8 +109,16 @@
 (defclass eval-request (command)
   ((form :initarg :form :initform (support:arg! :form) :reader form)))
 
+(defmethod print-object ((request eval-request) stream)
+  (print-unreadable-object (request stream :type T :identity T)
+    (format stream "~s" (form request))))
+
 (defclass return-message (reply)
   ((value :initarg :value :initform (support:arg! :value) :reader value)))
+
+(defmethod print-object ((request return-message) stream)
+  (print-unreadable-object (request stream :type T :identity T)
+    (format stream "~s" (value request))))
 
 (defmethod handle ((request eval-request) (connection connection))
   (let ((values (multiple-value-list (eval (form request)))))
@@ -118,6 +130,10 @@
    (parameters :initarg :parameters :initform (support:arg! :parameters) :reader parameters)
    (version :initarg :version :initform (support:arg! :version) :reader version)
    (execute-on :initarg :execute-on :initform :self :reader execute-on)))
+
+(defmethod print-object ((request effect-request) stream)
+  (print-unreadable-object (request stream :type T :identity T)
+    (format stream "~a ~s" (effect-type request) (parameters request))))
 
 (defstruct (artefact
             (:constructor make-artefact (source target))

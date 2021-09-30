@@ -244,16 +244,9 @@
                        :first-steps first-steps
                        :final-steps final-steps)))))
 
-(defclass basic-executor (executor)
-  ((force :initarg :force :initform NIL :accessor force)))
-
-(defmethod execute ((step step) (executor basic-executor))
-  (when (or (force executor)
-            (not (effect-realized-p (effect step) executor)))
-    (perform (operation step) (component step))))
-
-(defclass linear-executor (basic-executor)
-  ((client :initarg :client :initform (support:arg! :client) :accessor client)))
+(defclass linear-executor (executor)
+  ((force :initarg :force :initform NIL :accessor force)
+   (client :initarg :client :initform (support:arg! :client) :accessor client)))
 
 (defun compute-step-sequence (plan)
   (let ((visit (make-hash-table :test 'eq))
@@ -268,6 +261,12 @@
             do (visit step))
       sequence)))
 
+(defmethod execute ((step step) (executor linear-executor))
+  (when (or (force executor)
+            (not (effect-realized-p (effect step) executor)))
+    (perform (operation step) (component step) (client executor))))
+
 (defmethod execute ((plan plan) (executor linear-executor))
   (promise:do-promised (step (compute-step-sequence plan))
-    (execute step executor)))
+    (handler-bind ((error #'invoke-debugger))
+      (execute step executor))))

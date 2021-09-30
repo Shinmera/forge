@@ -45,6 +45,7 @@
 
 (defgeneric start (server &key))
 (defgeneric stop (server))
+(defgeneric list-clients (server))
 (defgeneric find-machine (name server &key if-does-not-exist))
 (defgeneric (setf find-machine) (machine name server &key if-exists))
 (defgeneric delete-machine (name server))
@@ -103,6 +104,9 @@
            (when (promise-thread server) (wait-for-thread-exit (promise-thread server))))
       (close (connection server))
       (setf (slot-value server 'connection) NIL))))
+
+(defmethod list-clients ((server server))
+  (alexandria:hash-table-values (clients server)))
 
 (defmethod communication:alive-p ((server server))
   (or (and (message-thread server) (bt:thread-alive-p (message-thread server)))
@@ -287,15 +291,17 @@
     (:then () (communication:reply! client message 'communication:ok))
     (:handle (e) (communication:esend client e message))))
 
-(defun promise-reply (message client &key (lifetime 120) send)
+(defun promise-reply (message client &key (lifetime 120) send values-list)
   (let ((promise (promise:pend :lifetime lifetime)))
     (setf (gethash (communication:id message) (callback-table client)) promise)
-    (when send (communication:send message (connection client)))
-    promise))
+    (when send (communication:send message client))
+    (promise:then promise (lambda (v) (promise:pend :success (if values-list
+                                                                 (communication:value v)
+                                                                 (first (communication:value v))))))))
 
-(defmacro with-client-eval ((client &key (lifetime 120)) &body body)
+(defmacro with-client-eval ((client &key (lifetime 120) values-list) &body body)
   `(promise-reply (make-instance 'communication:eval-request :form (progn ,@body))
-                  ,client :lifetime ,lifetime :send T))
+                  ,client :lifetime ,lifetime :values-list ,values-list :send T))
 
 (defmethod maintain-connection ((client client))
   (let ((timeout (- (get-universal-time) (car (last-message client)))))

@@ -31,7 +31,10 @@ Author: Nicolas Hafner <shinmera@tymoon.eu>
   (with-client-eval (client)
     `(write-string ,(message c) *standard-output*)))
 
+(rename-package *package* (package-name *package*) '(forge))
 (setf *database* (make-instance 'basic-database))
+(setf (v:repl-level) :trace)
+(start T)
 (make-instance 'message :name 0 :message "0")
 (make-instance 'message :name 1 :message "A" :depends-on '(0) :version 1)
 (make-instance 'message :name 1 :message "B" :depends-on '() :version 2)
@@ -40,4 +43,9 @@ Author: Nicolas Hafner <shinmera@tymoon.eu>
 (make-instance 'message :name 3 :message "3" :depends-on '((1 ([ 1 2)) 2))
 (make-instance 'message :name 4 :message "4" :depends-on '(3))
 
-#++ (org.shirakumo.forge.client:request-effect "ORG.SHIRAKUMO.FORGE:PRINT-EFFECT" 4)
+#++
+(defun test ()
+  (org.shirakumo.forge.client:start :machine :server :dedicate NIL)
+  (unwind-protect
+       (org.shirakumo.forge.client:request-effect "ORG.SHIRAKUMO.FORGE:PRINT-EFFECT" 4)
+    (org.shirakumo.forge.client:stop)))
