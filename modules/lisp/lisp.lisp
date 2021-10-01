@@ -14,7 +14,10 @@
            (lisp-implementation-type)
            (lisp-implementation-version))))
 
-(defclass file (forge:file-component)
+(defclass compile-effect (forge:effect) ())
+(defclass load-effect (forge:effect) ())
+
+(defclass file (forge:component)
   ())
 
 (defmethod forge:artefact ((file file)))
@@ -29,7 +32,7 @@
   ())
 
 (defmethod forge:make-effect ((op load-operation) (c file))
-  (forge:ensure-effect op c 'load-effect (forge:file c)))
+  (forge:ensure-effect op c 'load-effect (file c)))
 
 (defmethod forge:perform ((op load-operation) (c file) client)
   (forge:with-client-eval (client)
@@ -41,13 +44,13 @@
   ())
 
 (defmethod forge:make-effect ((op compile-file-operation) (c file))
-  (forge:ensure-effect op c 'compile-effect (forge:file c)))
+  (forge:ensure-effect op c 'compile-effect (file c)))
 
-(defmethod forge:output-artefact ((op compile-file-operation) (c file))
-  (let* ((file (cdr (forge:file c)))
+(defmethod output-artefact ((op compile-file-operation) (c file))
+  (let* ((file (cdr (file c)))
          (dir (list* :relative
                      (implementation-version-string)
-                     (id (forge:project c))
+                     (id (project c))
                      (forge:to-string (forge:version c))
                      (rest (pathname-directory file)))))
     (cons :cache (make-pathname :name (pathname-name file) :type "fasl" :directory dir))))
@@ -55,23 +58,20 @@
 (defmethod forge:perform ((op compile-file-operation) (c file) client)
   (promise:-> (forge:with-client-eval (client)
                 `(compile-file ,(forge:artefact-pathname (forge:artefact c) client)
-                               :output-file ,(forge:artefact-pathname (forge:output-artefact op c) client)
+                               :output-file ,(forge:artefact-pathname (output-artefact op c) client)
                                :verbose ,(verbose op)
                                :print ,(verbose op)))
-              (:then (file) (forge:touch (forge:pathname-artefact file client :if-does-not-exist :create)))))
+    (:then (file) (forge:touch (forge:pathname-artefact file client :if-does-not-exist :create)))))
 
 (defclass load-fasl-operation (forge:operation)
   ())
 
 (defmethod forge:make-effect ((op load-fasl-operation) (c file))
-  (forge:ensure-effect op c 'load-effect (forge:file c)))
+  (forge:ensure-effect op c 'load-effect (file c)))
 
-(defmethod forge:dependencies append ((op load-fasl-operation) (c lisp-file))
-  (list (forge:depend 'compile-effect (forge:file c))))
+(defmethod forge:dependencies append ((op load-fasl-operation) (c file))
+  (list (forge:depend 'compile-effect (file c))))
 
 (defmethod forge:perform ((op load-fasl-operation) (c file) client)
   (forge:with-client-eval (client)
-    `(load ,(forge:artefact-pathname (forge:output-artefact 'compile-file-operation c) client))))
-
-(defclass compile-effect (forge:effect) ())
-(defclass load-effect (forge:effect) ())
+    `(load ,(forge:artefact-pathname (output-artefact 'compile-file-operation c) client))))
