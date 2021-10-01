@@ -22,6 +22,7 @@
    #:find-registry
    #:artefact-pathname
    #:pathname-artefact
+   #:notice-file
    #:registry
    #:name
    #:path

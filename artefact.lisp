@@ -62,6 +62,9 @@
 (defmethod pathname-artefact ((path pathname) (machine machine) &key (if-does-not-exist :error))
   (pathname-artefact (namestring path) machine :if-does-not-exist if-does-not-exist))
 
+(defun notice-file (pathname client)
+  (touch (pathname-artefact pathname client :if-does-not-exist :create)))
+
 (defclass registry ()
   ((name :initarg :name :initform (support:arg! :name) :reader name)
    (artefacts :initform (make-hash-table :test 'equal) :reader artefacts)

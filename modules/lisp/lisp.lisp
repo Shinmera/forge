@@ -18,9 +18,11 @@
 (defclass load-effect (forge:effect) ())
 
 (defclass file (forge:component)
-  ())
+  ((file :initarg :file :reader file)
+   (project :initarg :project :reader project)))
 
-(defmethod forge:artefact ((file file)))
+(defmethod artefact ((file file) client)
+  (forge:find-artefact (file file) (forge:find-registry (project file) client)))
 
 (defmethod forge:supported-operations append ((file file))
   '(load-operation compile-file-operation load-fasl-operation))
@@ -36,7 +38,7 @@
 
 (defmethod forge:perform ((op load-operation) (c file) client)
   (forge:with-client-eval (client)
-    `(load ,(forge:artefact-pathname (forge:artefact c) client)
+    `(load ,(forge:artefact-pathname (artefact c client) client)
            :verbose ,(verbose op)
            :print ,(verbose op))))
 
@@ -50,18 +52,18 @@
   (let* ((file (cdr (file c)))
          (dir (list* :relative
                      (implementation-version-string)
-                     (id (project c))
+                     (project c)
                      (forge:to-string (forge:version c))
                      (rest (pathname-directory file)))))
     (cons :cache (make-pathname :name (pathname-name file) :type "fasl" :directory dir))))
 
 (defmethod forge:perform ((op compile-file-operation) (c file) client)
   (promise:-> (forge:with-client-eval (client)
-                `(compile-file ,(forge:artefact-pathname (forge:artefact c) client)
+                `(compile-file ,(forge:artefact-pathname (artefact c client) client)
                                :output-file ,(forge:artefact-pathname (output-artefact op c) client)
                                :verbose ,(verbose op)
                                :print ,(verbose op)))
-    (:then (file) (forge:touch (forge:pathname-artefact file client :if-does-not-exist :create)))))
+    (:then (file) (forge:notice-file file client))))
 
 (defclass load-fasl-operation (forge:operation)
   ())
