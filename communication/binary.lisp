@@ -341,7 +341,8 @@
         (declare (dynamic-extent buffer))
         (loop for read = (read-sequence buffer stream)
               while (< 0 read)
-              do (write-sequence buffer output :end read))))))
+              do (write-sequence buffer output :end read))))
+    target))
 
 ;; Flex to make dummy-symbols appear as symbols on the wire, as the symbol
 ;; decode takes care of restructuring them as dummies if not found.
