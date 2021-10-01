@@ -14,5 +14,6 @@
   :bug-tracker "https://github.com/Shinmera/forge/issues"
   :source-control (:git "https://github.com/Shinmera/forge.git")
   :serial T
-  :components ((:file "package"))
+  :components ((:file "package")
+               (:file "lisp"))
   :depends-on (:forge))

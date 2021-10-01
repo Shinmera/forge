@@ -37,14 +37,17 @@
    (socket :initarg :socket :initform (error "SOCKET required.") :accessor socket)))
 
 (defmethod communication:alive-p ((connection connection))
-  (and (not (null (socket connection)))
-       (open-stream-p (socket connection))))
+  (not (null (socket connection))))
 
 (defmethod close ((connection connection) &key abort)
   (ignore-errors (close (socket connection) :abort abort))
   (setf (socket connection) NIL))
 
 (defclass client-connection (connection communication:client-connection) ())
+
+(defmethod communication:alive-p ((connection client-connection))
+  (and (not (null (socket connection)))
+       (open-stream-p (socket connection))))
 
 (defmethod communication:handle :before ((message communication:connection-lost) (connection client-connection))
   (close connection :abort T))

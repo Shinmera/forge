@@ -1,0 +1,6 @@
+(eval-when (:compile-toplevel)
+  (print :compile))
+(eval-when (:load-toplevel)
+  (print :load))
+(eval-when (:execute)
+  (print :execute))

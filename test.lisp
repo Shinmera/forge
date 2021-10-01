@@ -6,46 +6,22 @@ Author: Nicolas Hafner <shinmera@tymoon.eu>
 
 (in-package #:org.shirakumo.forge)
 
-(defclass message (component)
-  ((name :initarg :name :initform (error "NAME") :reader name)
-   (message :initarg :message :initform (error "MESSAGE") :reader message)
-   (depends-on :initarg :depends-on :initform () :reader depends-on)))
-(defclass print-op (operation)
-  ())
-(defclass print-effect (effect) ())
-
-(defmethod supported-operations append ((message message))
-  '(print-op))
-
-(defmethod dependencies append ((op print-op) (c message))
-  (loop for spec in (depends-on c)
-        collect (if (listp spec)
-                    (destructuring-bind (parameters version) spec
-                      (depend 'print-effect parameters :version (parse-constraint version)))
-                    (depend 'print-effect spec))))
-
-(defmethod make-effect ((op print-op) (c message))
-  (ensure-effect op c 'print-effect (name c)))
-
-(defmethod perform ((op print-op) (c message) (client client))
-  (with-client-eval (client)
-    `(write-string ,(message c) *standard-output*)))
-
 (rename-package *package* (package-name *package*) '(forge))
-(setf *database* (make-instance 'basic-database))
+(unless (boundp '*database*)
+  (setf *database* (make-instance 'basic-database)))
 (setf (v:repl-level) :trace)
 (start T)
-(make-instance 'message :name 0 :message "0")
-(make-instance 'message :name 1 :message "A" :depends-on '(0) :version 1)
-(make-instance 'message :name 1 :message "B" :depends-on '() :version 2)
-(make-instance 'message :name 1 :message "C" :depends-on '(2) :version 3)
-(make-instance 'message :name 2 :message "2" :depends-on '(0))
-(make-instance 'message :name 3 :message "3" :depends-on '((1 ([ 1 2)) 2))
-(make-instance 'message :name 4 :message "4" :depends-on '(3))
+
+(setf (find-registry :cache *server*) #p "~/.cache/forge/")
+(setf (find-registry :test *server*) #p "~/Projects/cl/forge/test/")
+
+(find-artefact "a.lisp" *server* :registry :test :if-does-not-exist :create)
 
 #++
-(defun test ()
-  (org.shirakumo.forge.client:start :machine :server :dedicate NIL)
-  (unwind-protect
-       (org.shirakumo.forge.client:request-effect "ORG.SHIRAKUMO.FORGE:PRINT-EFFECT" 4)
-    (org.shirakumo.forge.client:stop)))
+(progn
+  (make-instance 'org.shirakumo.forge.modules.lisp::file :file "a.lisp" :project :test)
+  (defun test ()
+    (org.shirakumo.forge.client:start :machine :server :dedicate NIL)
+    (unwind-protect
+         (org.shirakumo.forge.client:request-effect "ORG.SHIRAKUMO.FORGE.MODULES.LISP:LOAD-EFFECT" "a.lisp")
+      (org.shirakumo.forge.client:stop))))

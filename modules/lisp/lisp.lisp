@@ -14,21 +14,40 @@
            (lisp-implementation-type)
            (lisp-implementation-version))))
 
+(defclass artefact-effect (forge:effect) ())
 (defclass compile-effect (forge:effect) ())
 (defclass load-effect (forge:effect) ())
 
 (defclass file (forge:component)
   ((file :initarg :file :reader file)
-   (project :initarg :project :reader project)))
+   (project :initarg :project :reader project)
+   (forge:version :initform (load-time-value (make-instance 'forge:integer-version)))))
 
 (defmethod artefact ((file file) client)
-  (forge:find-artefact (file file) (forge:find-registry (project file) client)))
+  (forge:find-artefact (file file) client :registry (project file)))
 
 (defmethod forge:supported-operations append ((file file))
-  '(load-operation compile-file-operation load-fasl-operation))
+  '(ensure-artefact-operation load-operation compile-file-operation load-fasl-operation))
+
+(defclass ensure-artefact-operation (forge:operation)
+  ())
+
+(defmethod forge:make-effect ((op ensure-artefact-operation) (c file))
+  (forge:ensure-effect op c 'artefact-effect c))
+
+(defmethod forge:perform ((op ensure-artefact-operation) (c file) client)
+  (let ((artefact (artefact c forge:*server*)))
+    (when (forge:artefact-changed-p artefact client)
+      (promise:-> (forge:with-client-eval (client)
+                    (communication::make-artefact (forge:artefact-pathname artefact forge:*server*)
+                                                  (forge:artefact-pathname artefact client)))
+        (:then (file) (forge:notice-file file client))))))
 
 (defclass lisp-source-operation (forge:operation)
   ((verbose :initarg :verbose :initform NIL :accessor verbose)))
+
+(defmethod forge:dependencies append ((op lisp-source-operation) (c file))
+  (list (forge:depend 'artefact-effect c)))
 
 (defclass load-operation (lisp-source-operation)
   ())
@@ -49,19 +68,18 @@
   (forge:ensure-effect op c 'compile-effect (file c)))
 
 (defmethod output-artefact ((op compile-file-operation) (c file))
-  (let* ((file (cdr (file c)))
-         (dir (list* :relative
-                     (implementation-version-string)
-                     (project c)
-                     (forge:to-string (forge:version c))
-                     (rest (pathname-directory file)))))
-    (forge:find-artefact (make-pathname :name (pathname-name file) :type "fasl" :directory dir)
+  (let ((dir (list* :relative
+                    (implementation-version-string)
+                    (princ-to-string (project c))
+                    (forge:to-string (forge:version c))
+                    (rest (pathname-directory (file c))))))
+    (forge:find-artefact (make-pathname :name (pathname-name (file c)) :type "fasl" :directory dir)
                          forge:*server* :if-does-not-exist :create)))
 
 (defmethod forge:perform ((op compile-file-operation) (c file) client)
   (promise:-> (forge:with-client-eval (client)
                 `(compile-file ,(forge:artefact-pathname (artefact c client) client)
-                               :output-file ,(forge:artefact-pathname (output-artefact op c) client)
+                               :output-file (ensure-directories-exist ,(forge:artefact-pathname (output-artefact op c) client))
                                :verbose ,(verbose op)
                                :print ,(verbose op)))
     (:then (file) (forge:notice-file file client))))

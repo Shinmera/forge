@@ -38,6 +38,12 @@
 (defmethod pathname-artefact (artefact (peer peer) &rest args)
   (apply #'pathname-artefact artefact (machine peer) args))
 
+(defmethod find-artefact (designator (peer peer) &rest args &key &allow-other-keys)
+  (apply #'find-artefact designator (machine peer) args))
+
+(defmethod delete-artefact (designator (peer peer))
+  (delete-artefact designator (machine peer)))
+
 (defclass server (peer)
   ((name :initform :server)
    (machine :initform NIL)
@@ -82,8 +88,9 @@
     (apply #'start *server* start-args)))
 
 (defmethod start ((server server) &key (listen :tcp) (address "127.0.0.1") (port tcp:DEFAULT-PORT))
-  (when (communication:alive-p server)
-    (error "server is already running."))
+  (case (communication:alive-p server)
+    ((T) (error "server is already running."))
+    ((NIL) (v:info :forge.network "Starting ~a..." server)))
   (unless (and (connection server) (communication:alive-p (connection server)))
     (setf (slot-value server 'connection)
           (communication:serve
@@ -94,14 +101,16 @@
              (:in-process
               (v:info :forge.network "Starting in-process communication")
               (make-instance 'in-process:host))))))
-  (v:info :forge.network "Starting ~a..." server)
   (setf (running-p server) T)
-  (setf (message-thread server)
-        (bt:make-thread (lambda () (message-loop server))
-                        :name (format NIL "forge-~(~a~)-message-thread" (name server))))
-  (setf (promise-thread server)
-        (bt:make-thread (lambda () (promise-loop server))
-                        :name (format NIL "forge-~(~a~)-promise-thread" (name server)))))
+  (unless (and (message-thread server) (bt:thread-alive-p (message-thread server)))
+    (setf (message-thread server)
+          (bt:make-thread (lambda () (message-loop server))
+                          :name (format NIL "forge-~(~a~)-message-thread" (name server)))))
+  (unless (and (promise-thread server) (bt:thread-alive-p (promise-thread server)))
+    (setf (promise-thread server)
+          (bt:make-thread (lambda () (promise-loop server))
+                          :name (format NIL "forge-~(~a~)-promise-thread" (name server)))))
+  server)
 
 (defmethod stop ((default (eql T)))
   (stop *server*))
@@ -115,14 +124,18 @@
            (when (message-thread server) (wait-for-thread-exit (message-thread server)))
            (when (promise-thread server) (wait-for-thread-exit (promise-thread server))))
       (close (connection server))
-      (setf (slot-value server 'connection) NIL))))
+      (setf (slot-value server 'connection) NIL)))
+  server)
 
 (defmethod list-clients ((server server))
   (alexandria:hash-table-values (clients server)))
 
 (defmethod communication:alive-p ((server server))
-  (or (and (message-thread server) (bt:thread-alive-p (message-thread server)))
-      (and (promise-thread server) (bt:thread-alive-p (promise-thread server)))))
+  (let ((message (and (message-thread server) (bt:thread-alive-p (message-thread server))))
+        (promise (and (promise-thread server) (bt:thread-alive-p (promise-thread server)))))
+    (cond ((and message promise) T)
+          ((or message promise) :weird)
+          (T NIL))))
 
 (defmethod find-machine (name (server server) &key (if-does-not-exist :error))
   (or (gethash name (machines server))
@@ -153,7 +166,7 @@
     (< (mtime artefact) (file-write-date path))))
 
 (defmethod artefact-changed-p (path (server server))
-  (artefact-changed-p (pathname-artefact artefact) server))
+  (artefact-changed-p (pathname-artefact path server) server))
 
 (defmethod artefact-changed-p (artefact (server (eql T)))
   (artefact-changed-p artefact *server*))
@@ -236,11 +249,12 @@
        (with-event-loop ()
          (unless (running-p server)
            (return))
-         (support:handler-case*
-             (promise:tick-all (get-universal-time))
-           (error (e)
-             (v:debug :forge.network "Encountered error ticking promises: ~a" e)
-             (v:trace :forge.network e))))
+         (with-simple-restart (abort "Abort ticking")
+           (support:handler-case*
+               (promise:tick-all (get-universal-time))
+             (error (e)
+                    (v:debug :forge.network "Encountered error ticking promises: ~a" e)
+                    (v:trace :forge.network e)))))
     (v:debug :forge.network "Leaving promise loop for ~a" server)))
 
 (defmacro with-promise ((server) &body body)
@@ -337,3 +351,8 @@
   (v:info :forge.network "Closing connection to ~a" client)
   (remhash (name client) (clients (server client)))
   (close (connection client) :abort abort))
+
+(defmethod artefact-changed-p ((artefact artefact) (client client))
+  (let ((existing (find-artefact (path artefact) (find-registry (registry artefact) client))))
+    (or (null existing)
+        (< (mtime existing) (mtime artefact)))))

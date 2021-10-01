@@ -6,6 +6,15 @@
 
 (in-package #:org.shirakumo.forge)
 
+(support:define-condition* no-such-registry (error)
+  (name machine) ("A registry named~%  ~s~%could not be found on the machine~%  ~s" name (machine condition)))
+
+(support:define-condition* registry-already-exists (error)
+  (name machine) ("A registry named~%  ~s~%already exists on the machine~%  ~s" name (machine condition)))
+
+(support:define-condition* no-such-artefact (error)
+  (path registry) ("An artefact at path~%  ~a~%could not be found in the registry~%  ~s" path (registry condition)))
+
 ;; Early-def
 (defclass registry () ())
 (defclass artefact () ())
@@ -13,6 +22,8 @@
 (defclass machine ()
   ((name :initarg :name :initform (support:arg! :name) :reader name)
    (registries :initform (make-hash-table :test 'equal) :reader registries)))
+
+(define-print-object-method* machine "~s" name)
 
 (defgeneric find-registry (name machine &key if-does-not-exist))
 (defgeneric (setf find-registry) (registry name machine &key if-exists))
@@ -70,6 +81,8 @@
    (artefacts :initform (make-hash-table :test 'equal) :reader artefacts)
    (path :initarg :path :initform (support:arg! :path) :reader path)))
 
+(define-print-object-method* registry "~s" name)
+
 (defgeneric find-artefact (path registry &key if-does-not-exist))
 (defgeneric delete-artefact (designator registry))
 
@@ -80,6 +93,12 @@
         (:error (error 'no-such-artefact :path path :registry registry))
         (:create (setf (gethash path (artefacts registry)) (make-instance 'artefact :registry (name registry) :path path))))))
 
+(defmethod find-artefact ((path pathname) (registry registry) &rest args)
+  (apply #'find-artefact (namestring path) registry args))
+
+(defmethod find-artefact (path (machine machine) &key (registry :cache) (if-does-not-exist :error))
+  (find-artefact path (find-registry registry machine) :if-does-not-exist if-does-not-exist))
+
 (defmethod delete-artefact ((path string) (registry registry))
   (remhash path (artefacts registry))
   path)
@@ -88,15 +107,14 @@
   (remhash (path artefact) (artefacts registry))
   artefact)
 
-(defmethod find-artefact (path (machine machine) &key (registry :cache) (if-does-not-exist :error))
-  (find-artefact path (find-registry registry machine) :if-does-not-exist if-does-not-exist))
-
 (defclass artefact ()
   ((path :initarg :path :initform (support:arg! :path) :reader path)
    (registry :initarg :registry :initform (support:arg! :registry) :reader registry)
    (size :initarg :size :initform NIL :accessor size)
    (hash :initarg :hash :initform NIL :accessor hash)
    (mtime :initarg :mtime :initform (get-universal-time) :accessor mtime)))
+
+(define-print-object-method* artefact "~s ~s" (name (registry artefact)) path)
 
 (defmethod touch ((artefact artefact) &key hash size)
   (setf (hash artefact) hash)

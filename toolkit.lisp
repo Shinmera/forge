@@ -47,3 +47,13 @@
                (when (< seconds-passed 0.01)
                  (sleep (- 0.01 seconds-passed)))
                (setf ,last-check new-time))))))
+
+(defmacro define-print-object-method (class (instance stream &key identity) &body body)
+  `(defmethod print-object ((,instance ,class) ,stream)
+     (print-unreadable-object (,instance ,stream :type T :identity ,identity)
+       ,@body)))
+
+(defmacro define-print-object-method* (class format-string &rest args)
+  `(define-print-object-method ,class (,class stream)
+     (format stream ,format-string ,@(loop for arg in args
+                                           collect (if (listp arg) arg `(,arg ,class))))))
