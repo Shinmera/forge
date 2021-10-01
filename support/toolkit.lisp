@@ -59,7 +59,8 @@
        (tagbody
           ,retry
           (restart-case
-              (return-from ,block ,@body)
+              (return-from ,block
+                (progn ,@body))
             (,name ()
               :report (lambda (s) (format s ,format-string ,@format-args))
               (go ,retry)))))))

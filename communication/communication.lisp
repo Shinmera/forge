@@ -53,8 +53,20 @@
 (defclass message ()
   ((id :initarg :id :initform (next-id) :reader id)))
 
+(defmethod print-object ((message message) stream)
+  (print-unreadable-object (message stream :type T)
+    (format stream "~a" (id message))))
+
+(defmacro define-message-printer (class (instance stream) &body body)
+  `(defmethod print-object ((,instance ,class) ,stream)
+     (print-unreadable-object (,instance ,stream :type T)
+       ,@body
+       (format ,stream " #~a" (id ,instance)))))
+
 (defclass reply (message)
   ())
+
+(defmethod handle ((reply reply) (connection connection)))
 
 (defclass connection-lost (message) ())
 
@@ -82,19 +94,24 @@
    (client-id :initarg :client-id :initform NIL :reader client-id)
    (version :initarg :version :initform *version* :reader version)))
 
+(define-message-printer connect (request stream)
+  (format stream "~s~@[ ~s~]" (machine request) (client-id request)))
+
 (defclass error-message (reply)
   ((condition-type :initarg :condition-type :initform (support:arg! :condition-type) :reader condition-type)
    (arguments :initarg :arguments :initform () :reader arguments)
    (report :initarg :report :initform NIL :reader report)))
 
-(defmethod print-object ((request error-message) stream)
-  (print-unreadable-object (request stream :type T :identity T)
-    (format stream "~s" (condition-type request))))
+(define-message-printer error-message (request stream)
+  (format stream "~s" (condition-type request)))
 
 (defclass warning-message (reply)
   ((condition-type :initarg :condition-type :initform (support:arg! :condition-type) :reader condition-type)
    (arguments :initarg :arguments :initform () :reader arguments)
    (report :initarg :report :initform NIL :reader report)))
+
+(define-message-printer warning-message (request stream)
+  (format stream "~s" (condition-type request)))
 
 (defun esend (connection condition &optional message)
   (send (make-instance (etypecase condition
@@ -109,20 +126,18 @@
 (defclass eval-request (command)
   ((form :initarg :form :initform (support:arg! :form) :reader form)))
 
-(defmethod print-object ((request eval-request) stream)
-  (print-unreadable-object (request stream :type T :identity T)
-    (format stream "~s" (form request))))
-
-(defclass return-message (reply)
-  ((value :initarg :value :initform (support:arg! :value) :reader value)))
-
-(defmethod print-object ((request return-message) stream)
-  (print-unreadable-object (request stream :type T :identity T)
-    (format stream "~s" (value request))))
+(define-message-printer eval-request (request stream)
+  (format stream "~s" (form request)))
 
 (defmethod handle ((request eval-request) (connection connection))
   (let ((values (multiple-value-list (eval (form request)))))
     (reply! connection request 'return-message :value values)))
+
+(defclass return-message (reply)
+  ((value :initarg :value :initform (support:arg! :value) :reader value)))
+
+(define-message-printer return-message (request stream)
+  (format stream "~s" (value request)))
 
 ;; Class for a client to request a plan and execution.
 (defclass effect-request (command)
@@ -131,9 +146,8 @@
    (version :initarg :version :initform (support:arg! :version) :reader version)
    (execute-on :initarg :execute-on :initform :self :reader execute-on)))
 
-(defmethod print-object ((request effect-request) stream)
-  (print-unreadable-object (request stream :type T :identity T)
-    (format stream "~a ~s" (effect-type request) (parameters request))))
+(define-message-printer effect-request (request stream)
+  (format stream "~a ~s" (effect-type request) (parameters request)))
 
 (defstruct (artefact
             (:constructor make-artefact (source target))

@@ -39,6 +39,7 @@
   (when (connected-p)
     (error 'already-connected :connection *forge-connection*))
   (support:with-retry-restart ()
+    (communication:init-id-counter machine)
     (let ((host (or host (make-instance 'tcp:host :address address :port port))))
       (loop (with-simple-restart (retry "Retry connecting.")
               (let ((connection (or (try-connect host machine :id id :timeout timeout)
@@ -98,10 +99,11 @@
           (handler-case
               (let ((message (communication:receive connection :timeout 1.0)))
                 (when message
-                  (handler-case (communication:handle message connection)
+                  (handler-case
+                      (communication:handle message connection)
                     (error (e)
                       (communication:esend connection e message)))
-                  (when (and until (equal (id message) until))
+                  (when (and until (equal (communication:id message) until))
                     (invoke-restart 'communication:exit-command-loop))))
             (error (e)
               (ignore-errors (communication:esend connection e)))))))

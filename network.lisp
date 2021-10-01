@@ -303,6 +303,9 @@
     (:then () (communication:reply! client message 'communication:ok))
     (:handle (e) (communication:esend client e message))))
 
+(defmethod handle ((message communication:exit) (client client))
+  (close client))
+
 (defun promise-reply (message client &key (lifetime 120) send values-list)
   (let ((promise (promise:pend :lifetime lifetime)))
     (setf (gethash (communication:id message) (callback-table client)) promise)
