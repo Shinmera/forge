@@ -80,7 +80,7 @@
                (with-simple-restart (reconnect "Attempt to reconnect again.")
                  (return (funcall on-reconnect-failure)))))))))
 
-(defun command-loop (connection &key (on-disconnect :reconnect) (on-reconnect-failure :sleep))
+(defun command-loop (connection &key (on-disconnect :reconnect) (on-reconnect-failure :sleep) until)
   (with-simple-restart (communication:exit-command-loop "Exit the command loop.")
     (loop (unless (communication:alive-p connection)
             (restart-case
@@ -95,7 +95,16 @@
                 :report "Attempt to reconnect."
                 (setf connection (handle-reconnect connection :on-reconnect-failure on-reconnect-failure))
                 (unless connection (return)))))
-          (communication:handle1 connection))))
+          (handler-case
+              (let ((message (communication:receive connection :timeout 1.0)))
+                (when message
+                  (handler-case (communication:handle message connection)
+                    (error (e)
+                      (communication:esend connection e message)))
+                  (when (and until (equal (id message) until))
+                    (invoke-restart 'communication:exit-command-loop))))
+            (error (e)
+              (ignore-errors (communication:esend connection e)))))))
 
 (defun dedicate (&rest start-args)
   (unless (connected-p)
@@ -120,23 +129,26 @@
   (kill-server)
   (prune-package (remove-if-not #'forge-package-p (list-all-packages))))
 
+(defun ensure-effect-type (effect-type)
+  (etypecase effect-type
+    (symbol effect-type)
+    (communication:dummy-symbol effect-type)
+    (string (let ((colon (position #\: effect-type)))
+              (communication:make-dummy-symbol
+               (subseq effect-type 0 colon) (subseq effect-type (1+ colon)))))
+    (list (communication:make-dummy-symbol
+           (first effect-type) (second effect-type)))))
+
 (defun request-effect (effect-type parameters &key (version T) (execute-on :self) (connection *forge-connection*))
   (unless connection
     (setf connection (start :dedicate NIL)))
-  (communication:send! connection 'communication:effect-request
-                       :effect-type (etypecase effect-type
-                                      (symbol effect-type)
-                                      (communication:dummy-symbol effect-type)
-                                      (string (let ((colon (position #\: effect-type)))
-                                                (communication:make-dummy-symbol
-                                                 (subseq effect-type 0 colon) (subseq effect-type (1+ colon)))))
-                                      (list (communication:make-dummy-symbol
-                                             (first effect-type) (second effect-type))))
-                       :parameters parameters
-                       :version version
-                       :execute-on execute-on)
-  ;; FIXME: how to loop only until we get the OK for the above request?
-  (command-loop connection))
+  (let ((message (make-instance 'communication:effect-request
+                                :effect-type (ensure-effect-type effect-type)
+                                :parameters parameters
+                                :version version
+                                :execute-on execute-on)))
+    (communication:send message connection)
+    (command-loop connection :until (communication:id message))))
 
 (defun load-project (project &key (version T) (connection *forge-connection*))
   (request-effect (communication:make-dummy-symbol "ORG.SHIRAKUMO.FORGE.MODULES.LISP" "LOAD-EFFECT")

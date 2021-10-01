@@ -321,7 +321,7 @@
 (define-slot-coder warning-message (id condition-type arguments report))
 (define-slot-coder eval-request (id form))
 (define-slot-coder return-message (id value))
-(define-slot-coder effect-request (effect-type parameters version execute-on))
+(define-slot-coder effect-request (id effect-type parameters version execute-on))
 
 (define-encoding artefact (value stream)
   (progn

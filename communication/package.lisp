@@ -69,7 +69,6 @@
    #:dummy-symbol-name
    #:encode-message
    #:decode-message
-   #:handle1
    #:exit-command-loop
    #:handshake)
   ;; binary.lisp

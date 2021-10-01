@@ -158,16 +158,6 @@
 (defgeneric encode-message (message stream))
 (defgeneric decode-message (type stream))
 
-(defun handle1 (connection &key timeout)
-  (handler-case
-      (let ((message (receive connection :timeout timeout)))
-        (when message
-          (handler-case (handle message connection)
-            (error (e)
-              (esend connection e message)))))
-    (error (e)
-      (esend connection e))))
-
 (defun handshake (connection machine &key id timeout)
   (let ((message (send! connection 'connect :machine machine :client-id id)))
     (let ((message (receive connection :timeout timeout)))
