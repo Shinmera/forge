@@ -88,6 +88,9 @@
   (remhash (path artefact) (artefacts registry))
   artefact)
 
+(defmethod find-artefact (path (machine machine) &key (registry :cache) (if-does-not-exist :error))
+  (find-artefact path (find-registry registry machine) :if-does-not-exist if-does-not-exist))
+
 (defclass artefact ()
   ((path :initarg :path :initform (support:arg! :path) :reader path)
    (registry :initarg :registry :initform (support:arg! :registry) :reader registry)

@@ -55,7 +55,8 @@
                      (project c)
                      (forge:to-string (forge:version c))
                      (rest (pathname-directory file)))))
-    (cons :cache (make-pathname :name (pathname-name file) :type "fasl" :directory dir))))
+    (forge:find-artefact (make-pathname :name (pathname-name file) :type "fasl" :directory dir)
+                         forge:*server* :if-does-not-exist :create)))
 
 (defmethod forge:perform ((op compile-file-operation) (c file) client)
   (promise:-> (forge:with-client-eval (client)
