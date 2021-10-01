@@ -26,6 +26,18 @@
 (defmethod communication:alive-p ((peer peer))
   (communication:alive-p (connection peer)))
 
+(defmethod find-registry (name (peer peer) &rest args)
+  (apply #'find-registry name (machine peer) args))
+
+(defmethod (setf find-registry) (registry name (peer peer) &rest args)
+  (apply #'(setf find-registry) registry name (machine peer) args))
+
+(defmethod artefact-pathname (artefact (peer peer))
+  (artefact-pathname artefact (machine peer)))
+
+(defmethod pathname-artefact (artefact (peer peer) &rest args)
+  (apply #'pathname-artefact artefact (machine peer) args))
+
 (defclass server (peer)
   ((name :initform :server)
    (machine :initform NIL)
