@@ -16,7 +16,6 @@
    #:start
    #:stop
    #:connected-p
-   #:dedicate
    #:prune
    #:request-effect
    #:load-project))

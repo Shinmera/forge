@@ -38,6 +38,10 @@ Author: Nicolas Hafner <shinmera@tymoon.eu>
     (communication:encode-message message stream)
     (force-output stream)))
 
+(defmethod communication:alive-p ((connection client-connection))
+  (and (not (null (socket connection)))
+       (open-stream-p (usocket:socket-stream (socket connection)))))
+
 (defmethod close ((connection server-connection) &key abort)
   (declare (ignore abort))
   (usocket:socket-close (socket connection)))

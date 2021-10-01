@@ -16,6 +16,7 @@
   :serial T
   :components ((:file "package")
                (:file "server")
+               (:file "network")
                (:file "client"))
   :depends-on (:forge-support
                :forge-communication))

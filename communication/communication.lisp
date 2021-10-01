@@ -13,9 +13,9 @@
   (host report) ("Connection to~%  ~a~%failed~@[:~%  ~a~]" host report))
 
 ;; Init to something hopefully unique on this machine
-(defun init-id-counter (&optional (machine-id (sxhash (machine-instance))))
+(defun init-id-counter (&optional (machine-id (machine-instance)))
   (let ((*random-state* (make-random-state T)))
-    (setf *id-counter* (+ (ash (ldb (byte 32 0) machine-id) 32)
+    (setf *id-counter* (+ (ash (ldb (byte 32 0) (sxhash machine-id)) 32)
                           (ash (ldb (byte 16 0) (get-universal-time)) 16)
                           (ash (ldb (byte 16 0) (random #xFFFF)) 0)))))
 
