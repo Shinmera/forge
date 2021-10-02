@@ -344,6 +344,14 @@
               do (write-sequence buffer output :end read))))
     target))
 
+(define-encoding artefact (value stream)
+  (progn
+    (encode (artefact-registry value))
+    (encode (artefact-path value))
+    (encode (artefact-machine value)))
+  (make-artefact
+   (decode) (decode) (decode)))
+
 ;; Flex to make dummy-symbols appear as symbols on the wire, as the symbol
 ;; decode takes care of restructuring them as dummies if not found.
 (defmethod encode-message ((value dummy-symbol) (stream stream))

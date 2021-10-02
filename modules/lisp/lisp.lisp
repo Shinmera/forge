@@ -29,7 +29,7 @@
 
 (defmethod forge:dependencies append ((op lisp-source-operation) (component file))
   (let ((artefact (forge:artefact component)))
-    (list* (forge:depend 'forge:artefact-effetc artefact)
+    (list* (forge:depend 'forge:artefact-effect artefact)
            (loop for dependency in (depends-on component)
                  for properties = (etypecase dependency
                                     (forge:artefact dependency)

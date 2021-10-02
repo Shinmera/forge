@@ -68,6 +68,11 @@
    #:make-dummy-symbol
    #:dummy-symbol-package
    #:dummy-symbol-name
+   #:artefact
+   #:make-artefact
+   #:artefact-registry
+   #:artefact-path
+   #:artefact-machine
    #:encode-message
    #:decode-message
    #:exit-command-loop

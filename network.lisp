@@ -356,3 +356,11 @@
   (let ((existing (find-artefact (path artefact) (find-registry (registry artefact) client))))
     (or (null existing)
         (< (mtime existing) (mtime artefact)))))
+
+;; KLUDGE: patch decoding of artefacts here to ensure we get actual artefact instances instead of
+;;         just references to them through the communications protocol.
+(defmethod communication:decode-message ((id (eql (communication:encoding-type-id 'communication:artefact))) (stream stream))
+  (let ((registry (communication:decode-message T stream))
+        (path (communication:decode-message T stream))
+        (machine (communication:decode-message T stream)))
+    (find-artefact path (find-machine machine *server*) :registry registry)))

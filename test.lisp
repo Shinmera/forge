@@ -22,5 +22,6 @@ Author: Nicolas Hafner <shinmera@tymoon.eu>
   (defun test ()
     (org.shirakumo.forge.client:start :machine :server :dedicate NIL)
     (unwind-protect
-         (org.shirakumo.forge.client:request-effect "ORG.SHIRAKUMO.FORGE.MODULES.LISP:LOAD-EFFECT" "b.lisp")
+         (org.shirakumo.forge.client:request-effect "ORG.SHIRAKUMO.FORGE.MODULES.LISP:LOAD-EFFECT"
+                                                    (communication:make-artefact :test "b.lisp"))
       (org.shirakumo.forge.client:stop))))

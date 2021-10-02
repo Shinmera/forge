@@ -169,6 +169,14 @@
   (package NIL :type string :read-only T)
   (name NIL :type string :read-only T))
 
+(defstruct (artefact
+            (:constructor make-artefact (registry path &optional (machine :server)))
+            (:copier NIL)
+            (:predicate NIL))
+  (registry NIL :type T :read-only T)
+  (path NIL :type string :read-only T)
+  (machine NIL :type T :read-only T))
+
 (defgeneric encode-message (message stream))
 (defgeneric decode-message (type stream))
 
