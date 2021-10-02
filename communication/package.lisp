@@ -58,9 +58,10 @@
    #:parameters
    #:version
    #:execute-on
-   #:artefact
-   #:artefact-source
-   #:artefact-target
+   #:file
+   #:make-file
+   #:file-source
+   #:file-target
    #:dummy-object
    #:dummy-object-description
    #:dummy-symbol

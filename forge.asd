@@ -23,6 +23,7 @@
                (:file "network")
                (:file "plan")
                (:file "basic")
+               (:file "dot")
                (:file "test"))
   :depends-on (:forge-support
                :forge-communication

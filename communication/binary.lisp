@@ -323,10 +323,10 @@
 (define-slot-coder return-message (id value))
 (define-slot-coder effect-request (id effect-type parameters version execute-on))
 
-(define-encoding artefact (value stream)
+(define-encoding file (value stream)
   (progn
-    (encode (artefact-target value))
-    (with-open-file (input (artefact-source value) :direction :input
+    (encode (file-target value))
+    (with-open-file (input (file-source value) :direction :input
                                                    :element-type '(unsigned-byte 8))
       (let ((buffer (make-array 4096 :element-type '(unsigned-byte 8))))
         (declare (dynamic-extent buffer))

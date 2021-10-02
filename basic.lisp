@@ -291,19 +291,6 @@
 (defmethod artefact-changed-p ((component artefact-component) registry)
   (artefact-changed-p (artefact component) registry))
 
-(defclass ensure-artefact-operation (operation)
-  ())
-
-(defmethod make-effect ((op ensure-artefact-operation) (c artefact-component))
-  (ensure-effect op c 'artefact-effect (artefact c)))
-
-(defmethod perform ((op ensure-artefact-operation) (component artefact-component) client)
-  (when (artefact-changed-p component client)
-    (promise:-> (with-client-eval (client)
-                  (communication::make-artefact (artefact-pathname component *server*)
-                                                (artefact-pathname component client)))
-      (:then (file) (notice-file file client)))))
-
 (defclass artefact-output-operation (operation)
   ())
 
@@ -311,5 +298,23 @@
   (output-artefact (prototype op) component))
 
 (defmethod perform :around ((op artefact-output-operation) component client)
-  (promise:-> (call-next-method)
-    (:then () (notice-file (output-artefact op component) client))))
+  (let ((promise-ish (call-next-method)))
+    (if (typep promise-ish 'promise:promise)
+        (promise:-> promise-ish
+          (:then () (notice-file (output-artefact op component) client)))
+        promise-ish)))
+
+(defclass ensure-artefact-operation (artefact-output-operation)
+  ())
+
+(defmethod make-effect ((op ensure-artefact-operation) (component artefact-component))
+  (ensure-effect op component 'artefact-effect (artefact component)))
+
+(defmethod output-artefact ((op ensure-artefact-operation) (component artefact-component))
+  (artefact component))
+
+(defmethod perform ((op ensure-artefact-operation) (component artefact-component) client)
+  (when (artefact-changed-p component client)
+    (with-client-eval (client)
+      (communication:make-file (artefact-pathname component *server*)
+                               (artefact-pathname component client)))))

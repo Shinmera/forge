@@ -29,6 +29,7 @@
 (defgeneric (setf find-registry) (registry name machine &key if-exists))
 (defgeneric artefact-pathname (artefact machine))
 (defgeneric pathname-artefact (pathname machine &key if-does-not-exist))
+(defgeneric notice-file (designator machine))
 
 (defmethod find-registry (name (machine machine) &key (if-does-not-exist :error))
   (or (gethash name (registries machine))
@@ -74,8 +75,11 @@
 (defmethod pathname-artefact ((path pathname) (machine machine) &key (if-does-not-exist :error))
   (pathname-artefact (namestring path) machine :if-does-not-exist if-does-not-exist))
 
-(defun notice-file (pathname client)
-  (touch (pathname-artefact pathname client :if-does-not-exist :create)))
+(defmethod notice-file ((path pathname) machine)
+  (touch (pathname-artefact path machine :if-does-not-exist :create)))
+
+(defmethod notice-file ((artefact artefact) machine)
+  (touch (find-artefact (path artefact) machine :registry (registry artefact) :if-does-not-exist :create)))
 
 (defclass registry ()
   ((name :initarg :name :initform (support:arg! :name) :reader name)
@@ -115,7 +119,7 @@
    (hash :initarg :hash :initform NIL :accessor hash)
    (mtime :initarg :mtime :initform (get-universal-time) :accessor mtime)))
 
-(define-print-object-method* artefact "~s ~s" (name (registry artefact)) path)
+(define-print-object-method* artefact "~s ~s" (registry artefact) path)
 
 (defmethod touch ((artefact artefact) &key hash size)
   (setf (hash artefact) hash)

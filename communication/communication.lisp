@@ -149,8 +149,8 @@
 (define-message-printer effect-request (request stream)
   (format stream "~a ~s" (effect-type request) (parameters request)))
 
-(defstruct (artefact
-            (:constructor make-artefact (source target))
+(defstruct (file
+            (:constructor make-file (source target))
             (:copier NIL)
             (:predicate NIL))
   (source NIL :type pathname :read-only T)

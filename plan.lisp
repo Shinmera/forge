@@ -164,6 +164,9 @@
    (successors :initarg :successors :initform () :accessor successors)
    (complete-p :initform NIL :accessor complete-p)))
 
+(define-print-object-method* step
+  "~s ~s" (type-of (operation step)) (type-of (component step)))
+
 (defclass compound-step (step)
   ((inner-effect :initarg :inner-effect :initform (support:arg! :inner-effect) :reader inner-effect)))
 
@@ -171,10 +174,6 @@
 (defgeneric effect-realized-p (effect executor))
 (defgeneric effect-needed-p (effect executor))
 (defgeneric connect (from to))
-
-(defmethod print-object ((step step) stream)
-  (print-unreadable-object (step stream :type T)
-    (format stream "~s ~s" (type-of (operation step)) (type-of (component step)))))
 
 (defmethod effect-realized-p ((effect effect) (executor executor))
   NIL)
