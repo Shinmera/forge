@@ -12,16 +12,14 @@ Author: Nicolas Hafner <shinmera@tymoon.eu>
 (setf (v:repl-level) :trace)
 (start T)
 
-(setf (find-registry :cache *server*) #p "~/.cache/forge/")
-(setf (find-registry :test *server*) #p "~/Projects/cl/forge/test/")
+(setf (find-registry :cache *server*) #p"~/.cache/forge/")
+(setf (find-registry :test *server*) #p"~/Projects/cl/forge/test/")
 
-(find-artefact "a.lisp" *server* :registry :test :if-does-not-exist :create)
-
-#++
 (progn
-  (make-instance 'org.shirakumo.forge.modules.lisp::file :file "a.lisp" :project :test)
+  (make-instance 'org.shirakumo.forge.modules.lisp::file :file "a.lisp" :depends-on '() :project :test)
+  (make-instance 'org.shirakumo.forge.modules.lisp::file :file "b.lisp" :depends-on '("a.lisp") :project :test)
   (defun test ()
     (org.shirakumo.forge.client:start :machine :server :dedicate NIL)
     (unwind-protect
-         (org.shirakumo.forge.client:request-effect "ORG.SHIRAKUMO.FORGE.MODULES.LISP:LOAD-EFFECT" "a.lisp")
+         (org.shirakumo.forge.client:request-effect "ORG.SHIRAKUMO.FORGE.MODULES.LISP:LOAD-EFFECT" "b.lisp")
       (org.shirakumo.forge.client:stop))))

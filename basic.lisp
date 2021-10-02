@@ -270,3 +270,35 @@
   (promise:do-promised (step (compute-step-sequence plan))
     (handler-bind ((error #'invoke-debugger))
       (execute step executor))))
+
+(defclass artefact-effect (effect) ())
+
+(defclass artefact-component (component)
+  ((artefact :initarg :artefact :reader artefact)))
+
+(defmethod initialize-instance :after ((component artefact-component) &key file registry)
+  (when (and file registry)
+    (setf (slot-value component 'artefact)
+          (find-artefact file *server* :registry registry :if-does-not-exist :create))))
+
+(defmethod supported-operations append ((component artefact-component))
+  '(ensure-artefact-operation))
+
+(defmethod artefact-pathname ((component artefact-component) registry)
+  (artefact-pathname (artefact component) registry))
+
+(defmethod artefact-changed-p ((component artefact-component) registry)
+  (artefact-changed-p (artefact component) registry))
+
+(defclass ensure-artefact-operation (operation)
+  ())
+
+(defmethod make-effect ((op ensure-artefact-operation) (c artefact-component))
+  (ensure-effect op c 'artefact-effect (artefact c)))
+
+(defmethod perform ((op ensure-artefact-operation) (component artefact-component) client)
+  (when (artefact-changed-p component client)
+    (promise:-> (with-client-eval (client)
+                  (communication::make-artefact (artefact-pathname component *server*)
+                                                (artefact-pathname component client)))
+      (:then (file) (notice-file file client)))))

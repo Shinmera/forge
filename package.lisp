@@ -43,7 +43,11 @@
    #:basic-policy
    #:linear-executor
    #:force
-   #:client)
+   #:client
+   #:artefact-effect
+   #:artefact-component
+   #:artefact
+   #:ensure-artefact-operation)
   ;; constraints.lisp
   (:export
    #:constraints-incompatible

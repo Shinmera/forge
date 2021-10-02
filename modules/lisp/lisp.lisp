@@ -14,72 +14,63 @@
            (lisp-implementation-type)
            (lisp-implementation-version))))
 
-(defclass artefact-effect (forge:effect) ())
 (defclass compile-effect (forge:effect) ())
 (defclass load-effect (forge:effect) ())
 
-(defclass file (forge:component)
-  ((file :initarg :file :reader file)
-   (project :initarg :project :reader project)
+(defclass file (forge:artefact-component)
+  ((depends-on :initarg :depends-on :initform () :reader depends-on)
    (forge:version :initform (load-time-value (make-instance 'forge:integer-version)))))
 
-(defmethod artefact ((file file) client)
-  (forge:find-artefact (file file) client :registry (project file)))
-
 (defmethod forge:supported-operations append ((file file))
-  '(ensure-artefact-operation load-operation compile-file-operation load-fasl-operation))
-
-(defclass ensure-artefact-operation (forge:operation)
-  ())
-
-(defmethod forge:make-effect ((op ensure-artefact-operation) (c file))
-  (forge:ensure-effect op c 'artefact-effect c))
-
-(defmethod forge:perform ((op ensure-artefact-operation) (c file) client)
-  (let ((artefact (artefact c forge:*server*)))
-    (when (forge:artefact-changed-p artefact client)
-      (promise:-> (forge:with-client-eval (client)
-                    (communication::make-artefact (forge:artefact-pathname artefact forge:*server*)
-                                                  (forge:artefact-pathname artefact client)))
-        (:then (file) (forge:notice-file file client))))))
+  '(load-operation compile-file-operation load-fasl-operation))
 
 (defclass lisp-source-operation (forge:operation)
   ((verbose :initarg :verbose :initform NIL :accessor verbose)))
 
-(defmethod forge:dependencies append ((op lisp-source-operation) (c file))
-  (list (forge:depend 'artefact-effect c)))
+(defmethod forge:dependencies append ((op lisp-source-operation) (component file))
+  (let ((artefact (forge:artefact component)))
+    (list* (forge:depend 'artefact-effect artefact)
+           (loop for dependency in (depends-on component)
+                 for properties = (etypecase dependency
+                                    (forge:artefact dependency)
+                                    (string (forge:find-artefact dependency (forge:registry artefact))))
+                 collect (forge:depend 'load-effect properties)))))
 
 (defclass load-operation (lisp-source-operation)
   ())
 
-(defmethod forge:make-effect ((op load-operation) (c file))
-  (forge:ensure-effect op c 'load-effect (file c)))
+(defmethod forge:make-effect ((op load-operation) (component file))
+  (forge:ensure-effect op component 'load-effect (forge:artefact component)))
 
-(defmethod forge:perform ((op load-operation) (c file) client)
+(defmethod forge:perform ((op load-operation) (component file) client)
   (forge:with-client-eval (client)
-    `(load ,(forge:artefact-pathname (artefact c client) client)
+    `(load ,(forge:artefact-pathname component client)
            :verbose ,(verbose op)
            :print ,(verbose op))))
 
 (defclass compile-file-operation (lisp-source-operation)
   ())
 
-(defmethod forge:make-effect ((op compile-file-operation) (c file))
-  (forge:ensure-effect op c 'compile-effect (file c)))
+(defmethod forge:make-effect ((op compile-file-operation) (component file))
+  (forge:ensure-effect op component 'compile-effect (forge:artefact component)))
 
-(defmethod output-artefact ((op compile-file-operation) (c file))
-  (let ((dir (list* :relative
-                    (implementation-version-string)
-                    (princ-to-string (project c))
-                    (forge:to-string (forge:version c))
-                    (rest (pathname-directory (file c))))))
-    (forge:find-artefact (make-pathname :name (pathname-name (file c)) :type "fasl" :directory dir)
+(defmethod output-artefact ((op symbol) component)
+  (output-artefact (forge::prototype op) component))
+
+(defmethod output-artefact ((op compile-file-operation) (component file))
+  (let* ((artefact (forge:artefact component))
+         (dir (list* :relative
+                     (implementation-version-string)
+                     (princ-to-string (forge:name (forge:registry artefact)))
+                     (forge:to-string (forge:version component))
+                     (rest (pathname-directory (forge:path artefact))))))
+    (forge:find-artefact (make-pathname :name (pathname-name (forge:path artefact)) :type "fasl" :directory dir)
                          forge:*server* :if-does-not-exist :create)))
 
-(defmethod forge:perform ((op compile-file-operation) (c file) client)
+(defmethod forge:perform ((op compile-file-operation) (component file) client)
   (promise:-> (forge:with-client-eval (client)
-                `(compile-file ,(forge:artefact-pathname (artefact c client) client)
-                               :output-file (ensure-directories-exist ,(forge:artefact-pathname (output-artefact op c) client))
+                `(compile-file ,(forge:artefact-pathname component client)
+                               :output-file (ensure-directories-exist ,(forge:artefact-pathname (output-artefact op component) client))
                                :verbose ,(verbose op)
                                :print ,(verbose op)))
     (:then (file) (forge:notice-file file client))))
@@ -87,12 +78,12 @@
 (defclass load-fasl-operation (forge:operation)
   ())
 
-(defmethod forge:make-effect ((op load-fasl-operation) (c file))
-  (forge:ensure-effect op c 'load-effect (file c)))
+(defmethod forge:make-effect ((op load-fasl-operation) (component file))
+  (forge:ensure-effect op component 'load-effect (forge:artefact component)))
 
-(defmethod forge:dependencies append ((op load-fasl-operation) (c file))
-  (list (forge:depend 'compile-effect (file c))))
+(defmethod forge:dependencies append ((op load-fasl-operation) (component file))
+  (list (forge:depend 'compile-effect (forge:artefact component))))
 
-(defmethod forge:perform ((op load-fasl-operation) (c file) client)
+(defmethod forge:perform ((op load-fasl-operation) (component file) client)
   (forge:with-client-eval (client)
-    `(load ,(forge:artefact-pathname (output-artefact 'compile-file-operation c) client))))
+    `(load ,(forge:artefact-pathname (output-artefact 'compile-file-operation component) client))))

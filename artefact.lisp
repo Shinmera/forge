@@ -48,7 +48,8 @@
   (setf (find-registry name machine :if-exists if-exists) (make-instance 'registry :path path :name name)))
 
 (defmethod (setf find-registry) ((path pathname) name (machine machine) &key (if-exists :error))
-  (setf (find-registry name machine :if-exists if-exists) (namestring path)))
+  (let ((path (namestring (truename (ensure-directories-exist path)))))
+    (setf (find-registry name machine :if-exists if-exists) path)))
 
 (defmethod artefact-pathname ((artefact artefact) (machine machine))
   (merge-pathnames (path artefact)
