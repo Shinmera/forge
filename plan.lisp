@@ -190,3 +190,8 @@
 (defmethod disconnect ((from step) (to step))
   (setf (successors from) (delete to (successors from)))
   (setf (predecessors to) (delete from (predecessors to))))
+
+;; FIXME: check compiler and compiler version congruity on compiler-operations.
+;; FIXME: ensure 'same-system deps' are assigned to same client or same machine.
+;; FIXME: actually cache stuff
+;; FIXME: getting artefacts from one client to another
