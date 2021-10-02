@@ -302,28 +302,18 @@
           (promise:succeed callback message)))))))
 
 (defmethod handle ((message communication:effect-request) (client client))
-  (promise:-> (PROMISE:THEN (PROMISE:PEND :SUCCESS T)
-                            (LAMBDA (_)
-                              (DECLARE (IGNORE _))
-                              (HANDLER-BIND ((ERROR #'INVOKE-DEBUGGER))
-                                (LET* ((EFFECT
-                                         (FIND-EFFECT *DATABASE*
-                                                      (COMMUNICATION:EFFECT-TYPE MESSAGE)
-                                                      (COMMUNICATION:PARAMETERS MESSAGE)
-                                                      (PARSE-CONSTRAINT
-                                                       (COMMUNICATION:VERSION MESSAGE))))
-                                       (PLAN
-                                         (COMPUTE-PLAN EFFECT (MAKE-INSTANCE 'BASIC-POLICY)))
-                                       (EXECUTOR
-                                         (ECASE (COMMUNICATION:EXECUTE-ON MESSAGE)
-                                           (:SELF
-                                            (MAKE-INSTANCE 'LINEAR-EXECUTOR :CLIENT CLIENT))
-                                           (:ANY
-                                            (MAKE-INSTANCE 'LINEAR-EXECUTOR :CLIENT
-                                                           (ALEXANDRIA:RANDOM-ELT
-                                                            (CLIENTS (SERVER CLIENT)))))
-                                           (:ALL (MAKE-INSTANCE 'PARALLEL-EXECUTOR)))))
-                                  (EXECUTE PLAN EXECUTOR)))))
+  (promise:-> (with-promise ((server client))
+                (handler-bind ((error #'invoke-debugger))
+                  (let* ((effect (find-effect *database*
+                                              (communication:effect-type message)
+                                              (communication:parameters message)
+                                              (parse-constraint (communication:version message))))
+                         (plan (compute-plan effect (make-instance 'basic-policy)))
+                         (executor (ecase (communication:execute-on message)
+                                     (:self (make-instance 'linear-executor :client client))
+                                     (:any (make-instance 'linear-executor :client (alexandria:random-elt (clients (server client)))))
+                                     (:all (make-instance 'parallel-executor)))))
+                    (execute plan executor))))
     (:then () (communication:reply! client message 'communication:ok))
     (:handle (e) (communication:esend client e message))))
 

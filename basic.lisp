@@ -276,7 +276,8 @@
 (defclass artefact-component (component)
   ((artefact :initarg :artefact :reader artefact)))
 
-(defmethod initialize-instance :after ((component artefact-component) &key file registry)
+(defmethod initialize-instance ((component artefact-component) &key file registry)
+  (call-next-method)
   (when (and file registry)
     (setf (slot-value component 'artefact)
           (find-artefact file *server* :registry registry :if-does-not-exist :create))))
@@ -302,3 +303,13 @@
                   (communication::make-artefact (artefact-pathname component *server*)
                                                 (artefact-pathname component client)))
       (:then (file) (notice-file file client)))))
+
+(defclass artefact-output-operation (operation)
+  ())
+
+(defmethod output-artefact ((op symbol) component)
+  (output-artefact (prototype op) component))
+
+(defmethod perform :around ((op artefact-output-operation) component client)
+  (promise:-> (call-next-method)
+    (:then () (notice-file (output-artefact op component) client))))

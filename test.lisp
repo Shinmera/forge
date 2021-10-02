@@ -15,9 +15,10 @@ Author: Nicolas Hafner <shinmera@tymoon.eu>
 (setf (find-registry :cache *server*) #p"~/.cache/forge/")
 (setf (find-registry :test *server*) #p"~/Projects/cl/forge/test/")
 
+#++
 (progn
-  (make-instance 'org.shirakumo.forge.modules.lisp::file :file "a.lisp" :depends-on '() :project :test)
-  (make-instance 'org.shirakumo.forge.modules.lisp::file :file "b.lisp" :depends-on '("a.lisp") :project :test)
+  (make-instance 'org.shirakumo.forge.modules.lisp::file :registry :test :file "a.lisp" :depends-on '())
+  (make-instance 'org.shirakumo.forge.modules.lisp::file :registry :test :file "b.lisp" :depends-on '("a.lisp"))
   (defun test ()
     (org.shirakumo.forge.client:start :machine :server :dedicate NIL)
     (unwind-protect

@@ -47,7 +47,9 @@
    #:artefact-effect
    #:artefact-component
    #:artefact
-   #:ensure-artefact-operation)
+   #:ensure-artefact-operation
+   #:artefact-output-operation
+   #:output-artefact)
   ;; constraints.lisp
   (:export
    #:constraints-incompatible

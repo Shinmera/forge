@@ -48,32 +48,29 @@
            :verbose ,(verbose op)
            :print ,(verbose op))))
 
-(defclass compile-file-operation (lisp-source-operation)
+(defclass compile-file-operation (lisp-source-operation forge:artefact-output-operation)
   ())
 
 (defmethod forge:make-effect ((op compile-file-operation) (component file))
-  (forge:ensure-effect op component 'compile-effect (forge:artefact component)))
+  (forge:ensure-effect op component 'compile-effect (forge:artefact component))
+  (forge:ensure-effect op component 'forge:artefact-effect (forge:output-artefact op component)))
 
-(defmethod output-artefact ((op symbol) component)
-  (output-artefact (forge::prototype op) component))
-
-(defmethod output-artefact ((op compile-file-operation) (component file))
+(defmethod forge:output-artefact ((op compile-file-operation) (component file))
   (let* ((artefact (forge:artefact component))
          (dir (list* :relative
                      (implementation-version-string)
-                     (princ-to-string (forge:name (forge:registry artefact)))
+                     (princ-to-string (forge:registry artefact))
                      (forge:to-string (forge:version component))
                      (rest (pathname-directory (forge:path artefact))))))
     (forge:find-artefact (make-pathname :name (pathname-name (forge:path artefact)) :type "fasl" :directory dir)
                          forge:*server* :if-does-not-exist :create)))
 
 (defmethod forge:perform ((op compile-file-operation) (component file) client)
-  (promise:-> (forge:with-client-eval (client)
-                `(compile-file ,(forge:artefact-pathname component client)
-                               :output-file (ensure-directories-exist ,(forge:artefact-pathname (output-artefact op component) client))
-                               :verbose ,(verbose op)
-                               :print ,(verbose op)))
-    (:then (file) (forge:notice-file file client))))
+  (forge:with-client-eval (client)
+    `(compile-file ,(forge:artefact-pathname component client)
+                   :output-file (ensure-directories-exist ,(forge:artefact-pathname (forge:output-artefact op component) client))
+                   :verbose ,(verbose op)
+                   :print ,(verbose op))))
 
 (defclass load-fasl-operation (forge:operation)
   ())
@@ -82,7 +79,7 @@
   (forge:ensure-effect op component 'load-effect (forge:artefact component)))
 
 (defmethod forge:dependencies append ((op load-fasl-operation) (component file))
-  (list (forge:depend 'compile-effect (forge:artefact component))))
+  (list (forge:depend 'forge:artefact-effect (output-artefact 'compile-file-operation component))))
 
 (defmethod forge:perform ((op load-fasl-operation) (component file) client)
   (forge:with-client-eval (client)
