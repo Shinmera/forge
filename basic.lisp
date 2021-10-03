@@ -318,3 +318,34 @@
     (with-client-eval (client)
       (communication:make-file (artefact-pathname component *server*)
                                (artefact-pathname component client)))))
+
+(defclass compiler-operation (operation)
+  ((compiler :initarg :compiler :initform NIL :accessor compiler)))
+
+(defclass compiler (versioned-object)
+  ((name :initarg :name :initform (support:arg! :name) :reader name)
+   (cache-directory :initarg :cache-directory :initform NIL :accessor cache-directory)))
+
+(defmethod initialize-instance :after ((compiler compiler) &key)
+  (unless (cache-directory compiler)
+    (setf (cache-directory compiler) (remove-if #'unsafe-path-char-p
+                                                (format NIL "~(~a-~a~)"
+                                                        (name compiler)
+                                                        (to-string (version compiler)))))))
+
+(defclass compiler-output-operation (artefact-output-operation compiler-operation)
+  ())
+
+(defmethod forge:make-effect ((op compiler-output-operation) (component artefact-component))
+  (forge:ensure-effect op component 'artefact-effect (forge:output-artefact op component)))
+
+(defgeneric output-file-type (operation component))
+
+(defmethod output-artefact ((op compiler-output-operation) (component artefact-component))
+  (let ((path (format NIL "~a/~a/~a/~a.~a"
+                      (cache-directory (compiler op))
+                      (registry (artefact component))
+                      (to-string (version component))
+                      (path (artefact component))
+                      (output-file-type op component))))
+    (forge:find-artefact path *server* :registry :cache :if-does-not-exist :create)))

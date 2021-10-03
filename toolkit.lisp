@@ -57,3 +57,7 @@
   `(define-print-object-method ,class (,class stream)
      (format stream ,format-string ,@(loop for arg in args
                                            collect (if (listp arg) arg `(,arg ,class))))))
+
+(defun unsafe-path-char-p (char)
+  (or (find char "/\\<>:|?*\"")
+      (<= 0 (char-code char) 31)))

@@ -24,7 +24,7 @@
 (defmethod forge:supported-operations append ((file file))
   '(load-operation compile-file-operation load-fasl-operation))
 
-(defclass lisp-source-operation (forge:operation)
+(defclass lisp-source-operation (forge:compiler-operation)
   ((verbose :initarg :verbose :initform NIL :accessor verbose)))
 
 (defmethod forge:dependencies append ((op lisp-source-operation) (component file))
@@ -48,22 +48,14 @@
            :verbose ,(verbose op)
            :print ,(verbose op))))
 
-(defclass compile-file-operation (lisp-source-operation forge:artefact-output-operation)
+(defclass compile-file-operation (forge:compiler-output-operation lisp-source-operation)
   ())
 
 (defmethod forge:make-effect ((op compile-file-operation) (component file))
-  (forge:ensure-effect op component 'compile-effect (forge:artefact component))
-  (forge:ensure-effect op component 'forge:artefact-effect (forge:output-artefact op component)))
+  (forge:ensure-effect op component 'compile-effect (forge:artefact component)))
 
-(defmethod forge:output-artefact ((op compile-file-operation) (component file))
-  (let* ((artefact (forge:artefact component))
-         (dir (list* :relative
-                     (implementation-version-string)
-                     (princ-to-string (forge:registry artefact))
-                     (forge:to-string (forge:version component))
-                     (rest (pathname-directory (forge:path artefact))))))
-    (forge:find-artefact (make-pathname :name (pathname-name (forge:path artefact)) :type "fasl" :directory dir)
-                         forge:*server* :if-does-not-exist :create)))
+(defmethod forge:output-file-type ((op compile-file-operation) (component file))
+  "fasl")
 
 (defmethod forge:perform ((op compile-file-operation) (component file) client)
   (forge:with-client-eval (client)

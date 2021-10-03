@@ -47,9 +47,15 @@
    #:artefact-effect
    #:artefact-component
    #:artefact
-   #:ensure-artefact-operation
    #:artefact-output-operation
-   #:output-artefact)
+   #:output-artefact
+   #:ensure-artefact-operation
+   #:compiler-operation
+   #:compiler
+   #:name
+   #:cache-directory
+   #:compiler-output-operation
+   #:output-file-type)
   ;; constraints.lisp
   (:export
    #:constraints-incompatible
