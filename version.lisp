@@ -9,6 +9,9 @@
 (defclass version ()
   ())
 
+(define-print-object-method* version
+  "~a" to-string)
+
 (defgeneric version= (a b))
 (defgeneric version< (a b))
 (defgeneric to-string (version))
@@ -128,6 +131,48 @@
 
 (defmethod parse-version ((version cons))
   (make-instance 'separated-version :value version))
+
+(defclass compound-version (version)
+  ((versions :initarg :versions :initform (support:arg! :versions) :reader versions)))
+
+(defmethod version= ((a compound-version) (b compound-version))
+  (loop for (ai ar) on (versions a)
+        for (bi br) on (versions b)
+        always (and (version= ai bi)
+                    (or (and ar br)
+                        (and (null ar) (null br))))))
+
+(defmethod version< ((a compound-version) (b compound-version))
+  (loop for ai in (versions a)
+        for bi in (versions b)
+        do (cond ((version< ai bi) (return T))
+                 ((version< bi ai) (return NIL)))))
+
+(defmethod to-string ((v compound-version))
+  (format NIL "~{~a~^-~}" (mapcar #'to-string (versions v))))
+
+(defun version-from-string (version)
+  (flet ((alpha-p (char)
+           (or (<= (char-code #\a) (char-code char) (char-code #\z))
+               (<= (char-code #\A) (char-code char) (char-code #\Z)))))
+    (cond ((find #\- version)
+           (make-instance 'compound-version :versions (mapcar #'from-string (cl-ppcre:split "[-]+" version))))
+          ((find #\. version)
+           (let* ((hashes (loop for part in (cl-ppcre:split "[.]+" version)
+                                collect (value (from-string part))))
+                  (integers (loop for part = (car hashes)
+                                  while (integerp part)
+                                  collect (pop hashes)))
+                  (version (make-instance 'separated-version :value integers)))
+             (if hashes
+                 (make-instance 'compound-version :versions (list* version (mapcar #'parse-version hashes)))
+                 version)))
+          ((every #'digit-char-p version)
+           (make-instance 'integer-version :value (parse-integer version)))
+          ((and (= 1 (length version)) (alpha-p (char version 0)))
+           (make-instance 'integer-version :value (- (char-code (char-downcase (char version 0))) (char-code #\a))))
+          (T
+           (make-instance 'hashed-version :value version)))))
 
 (defclass versioned-object ()
   ((version :initform *unknown-version* :accessor version)))

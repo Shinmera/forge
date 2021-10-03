@@ -29,6 +29,7 @@
                :forge-communication
                :closer-mop
                :promise
+               :cl-ppcre
                :usocket
                :documentation-utils
                :bordeaux-threads

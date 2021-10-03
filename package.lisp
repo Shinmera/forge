@@ -165,5 +165,8 @@
    #:value
    #:separated-version
    #:value
+   #:compound-version
+   #:versions
+   #:version-from-string
    #:versioned-object
    #:version))
