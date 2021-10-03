@@ -27,6 +27,10 @@
 (defclass lisp-source-operation (forge:compiler-operation)
   ((verbose :initarg :verbose :initform NIL :accessor verbose)))
 
+(defmethod forge:select-compiler ((ope lisp-source-operation) (policy forge:basic-policy))
+  ;; FIXME: need more info on the client's available compiler here...
+  )
+
 (defmethod forge:dependencies append ((op lisp-source-operation) (component file))
   (let ((artefact (forge:artefact component)))
     (list* (forge:depend 'forge:artefact-effect artefact)

@@ -53,6 +53,8 @@
    #:compiler-operation
    #:compiler
    #:target-platform
+   #:select-compiler
+   #:compiler
    #:name
    #:cache-directory
    #:compiler-output-operation

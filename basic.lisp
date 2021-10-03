@@ -323,6 +323,12 @@
   ((compiler :initarg :compiler :initform NIL :accessor compiler)
    (target-platform :initarg :target-platform :initform :native :accessor target-platform)))
 
+(defgeneric select-compiler (operation policy))
+
+(defmethod make-operation ((operation compiler-operation) (component component) (effect effect) (policy policy))
+  (setf (compiler operation) (select-compiler operation policy))
+  operation)
+
 (defclass compiler (versioned-object)
   ((name :initarg :name :initform (support:arg! :name) :reader name)
    (cache-directory :initarg :cache-directory :initform NIL :accessor cache-directory)))

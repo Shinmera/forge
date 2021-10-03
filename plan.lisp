@@ -191,7 +191,9 @@
   (setf (successors from) (delete to (successors from)))
   (setf (predecessors to) (delete from (predecessors to))))
 
-;; FIXME: check compiler and compiler version congruity on compiler-operations.
+;; FIXME: some way to register what toolsets are available on a client
+;; FIXME: alternatively: how to determine default compiler to use?
+;; FIXME: check compiler availability before plan execution
 ;; FIXME: ensure 'same-system deps' are assigned to same client or same machine.
 ;; FIXME: actually cache stuff
 ;; FIXME: getting artefacts from one client to another
