@@ -52,6 +52,7 @@
    #:ensure-artefact-operation
    #:compiler-operation
    #:compiler
+   #:target-platform
    #:name
    #:cache-directory
    #:compiler-output-operation

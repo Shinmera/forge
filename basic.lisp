@@ -320,7 +320,8 @@
                                (artefact-pathname component client)))))
 
 (defclass compiler-operation (operation)
-  ((compiler :initarg :compiler :initform NIL :accessor compiler)))
+  ((compiler :initarg :compiler :initform NIL :accessor compiler)
+   (target-platform :initarg :target-platform :initform :native :accessor target-platform)))
 
 (defclass compiler (versioned-object)
   ((name :initarg :name :initform (support:arg! :name) :reader name)
@@ -342,8 +343,9 @@
 (defgeneric output-file-type (operation component))
 
 (defmethod output-artefact ((op compiler-output-operation) (component artefact-component))
-  (let ((path (format NIL "~a/~a/~a/~a.~a"
+  (let ((path (format NIL "~(~a/~a/~a/~a/~)~a.~a"
                       (cache-directory (compiler op))
+                      (target-platform op)
                       (registry (artefact component))
                       (to-string (version component))
                       (path (artefact component))
