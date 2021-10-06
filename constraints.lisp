@@ -40,6 +40,9 @@
   (print-unreadable-object (constraint stream)
     (format stream "CONSTRAINT ~a" (to-string constraint))))
 
+(defmethod version-match-p ((a version) (b version))
+  (version= a b))
+
 (defun unify* (&rest constraints)
   (if constraints
       (let ((constraint (first constraints)))

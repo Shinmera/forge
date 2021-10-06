@@ -24,6 +24,9 @@
                (:file "plan")
                (:file "basic")
                (:file "dot")
+               (:file "module")
+               (:file "blueprint")
+               (:file "project")
                (:file "test"))
   :depends-on (:forge-support
                :forge-communication
@@ -32,6 +35,8 @@
                :cl-ppcre
                :usocket
                :documentation-utils
+               :pathname-utils
                :bordeaux-threads
                :verbose
-               :alexandria))
+               :alexandria
+               :ironclad))

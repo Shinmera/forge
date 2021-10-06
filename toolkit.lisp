@@ -61,3 +61,36 @@
 (defun unsafe-path-char-p (char)
   (or (find char "/\\<>:|?*\"")
       (<= 0 (char-code char) 31)))
+
+(defun tempdir ()
+  (pathname
+   (format NIL "~a/"
+           #+windows
+           (or (support:envvar "TEMP")
+               "~/AppData/Local/Temp")
+           #+darwin
+           (or (support:envvar "TMPDIR")
+               "/tmp")
+           #+linux
+           (or (support:envvar "XDG_RUNTIME_DIR")
+               "/tmp")
+           #-(or windows darwin linux)
+           "/tmp")))
+
+(defun random-id ()
+  (format NIL "~8,'0x-~8,'0x" (random #xFFFFFFFF) (get-universal-time)))
+
+(defun tempfile (&key name type)
+  (loop for path = (make-pathname :name (or name (random-id))
+                                  :type (or type "tmp")
+                                  :defaults (tempdir))
+        do (unless (probe-file path) (return path))))
+
+(defun hash-file (file)
+  (ironclad:digest-file :sha256 file))
+
+(defun removef (plist &rest fields)
+  (loop for (k v) on plist by #'cddr
+        for found = (find k fields)
+        unless found collect k
+        unless found collect v))
