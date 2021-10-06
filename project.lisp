@@ -40,9 +40,6 @@
 (defmethod ensure-version (version-ish)
   (parse-version version-ish))
 
-(defmethod ensure-version ((_ (eql :git)))
-  )
-
 (defmethod ensure-version ((file pathname))
   (version-from-string (alexandria:read-file-into-string file)))
 
