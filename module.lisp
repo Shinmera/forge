@@ -91,7 +91,7 @@
 
 #+asdf
 (define-module-entry-point-search-function asdf (designator)
-  (asdf:find-system designator NIL))
+  (asdf:find-system (format NIL "forge-module-~a" designator) NIL))
 
 #+asdf
 (defmethod load-module ((designator asdf:system) &key if-exists if-does-not-exist)
