@@ -343,8 +343,8 @@
 (defclass compiler-output-operation (artefact-output-operation compiler-operation)
   ())
 
-(defmethod forge:make-effect ((op compiler-output-operation) (component artefact-component))
-  (forge:ensure-effect op component 'artefact-effect (forge:output-artefact op component)))
+(defmethod make-effect ((op compiler-output-operation) (component artefact-component))
+  (ensure-effect op component 'artefact-effect (output-artefact op component)))
 
 (defgeneric output-file-type (operation component))
 
@@ -356,4 +356,4 @@
                       (to-string (version component))
                       (path (artefact component))
                       (output-file-type op component))))
-    (forge:find-artefact path *server* :registry :cache :if-does-not-exist :create)))
+    (find-artefact path *server* :registry :cache :if-does-not-exist :create)))

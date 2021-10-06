@@ -6,7 +6,7 @@
 
 (defpackage #:org.shirakumo.forge
   (:use #:cl)
-  (:shadow #:step)
+  (:shadow #:step #:*modules*)
   (:local-nicknames
    (#:support #:org.shirakumo.forge.support)
    (#:communication #:org.shirakumo.forge.communication)

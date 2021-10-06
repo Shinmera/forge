@@ -85,7 +85,7 @@
        (defclass ,module (,@superclasses module)
          ,slots)
        (let ((,instance (or (find-module ',module :if-does-not-exist NIL)
-                            (make-instance ',class :name ',module))))
+                            (make-instance ',module :name ',module))))
          (register-module ,instance)
          (reinitialize-instance ,instance ,@initargs)))))
 
