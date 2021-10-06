@@ -79,3 +79,7 @@
     (setf (gethash path *blueprint-timestamp-cache*)
           (list date (hash-file temp)))
     path))
+
+(defun list-blueprints ()
+  (loop for file being the hash-keys of *blueprint-timestamp-cache*
+        collect file))

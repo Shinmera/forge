@@ -46,6 +46,10 @@
 (defgeneric find-module (designator &key if-does-not-exist))
 (defgeneric register-module (module))
 
+(defun list-modules ()
+  (loop for module being the hash-values of *modules*
+        collect module))
+
 (defmethod load-module ((designator symbol) &key (if-exists :ignore) (if-does-not-exist :error))
   (let ((module (find-module designator :if-does-not-exist NIL)))
     (when module

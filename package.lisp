@@ -59,6 +59,17 @@
    #:cache-directory
    #:compiler-output-operation
    #:output-file-type)
+  ;; blueprint.lisp
+  (:export
+   #:*blueprint-truename*
+   #:*blueprint-search-paths*
+   #:add-blueprint-search-path
+   #:discover-blueprints
+   #:load-blueprints
+   #:reload-blueprints
+   #:maybe-load-blueprint
+   #:load-blueprint
+   #:list-blueprints)
   ;; constraints.lisp
   (:export
    #:constraints-incompatible
@@ -82,6 +93,16 @@
    #:max-version
    #:constraint-union
    #:constraints)
+  ;; module.lisp
+  (:export
+   #:module-entry-point-search-function
+   #:define-module-entry-point-search-function
+   #:find-module-entry-point
+   #:module
+   #:load-module
+   #:find-module
+   #:register-module
+   #:list-modules)
   ;; network.lisp
   (:export
    #:*server*
@@ -158,6 +179,23 @@
    #:effect-realized-p
    #:effect-needed-p
    #:connect)
+  ;; project.lisp
+  (:export
+   #:parent-component
+   #:children
+   #:project
+   #:name
+   #:blueprint
+   #:metadata
+   #:in-order-to
+   #:ensure-version
+   #:parse-project
+   #:find-project
+   #:register-project
+   #:delete-project
+   #:list-projects
+   #:define-project
+   #:forge)
   ;; version.lisp
   (:export
    #:version

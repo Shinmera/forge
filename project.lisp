@@ -31,6 +31,13 @@
 (defgeneric register-project (project &optional source-path))
 (defgeneric delete-project (project))
 
+(defun list-projects ()
+  (let ((projects ()))
+    (loop for versions being the hash-values of *projects*
+          do (loop for project in versions
+                   do (push project projects)))
+    projects))
+
 (defmethod ensure-version ((version version))
   version)
 
