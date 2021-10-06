@@ -1,0 +1,6 @@
+;; -*- mode: lisp; -*-
+(define-project (lisp)
+  :name "test"
+  :version 0
+  :components
+  ("*.lisp"))
