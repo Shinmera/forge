@@ -82,7 +82,7 @@
   (let ((instance (gensym "INSTANCE")))
     (remf initargs :class)
     `(progn
-       (defclass ,module (module)
+       (defclass ,module (,@superclasses module)
          ,slots)
        (let ((,instance (or (find-module ',module :if-does-not-exist NIL)
                             (make-instance ',class :name ',module))))

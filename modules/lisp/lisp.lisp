@@ -6,6 +6,9 @@
 
 (in-package #:org.shirakumo.forge.modules.lisp)
 
+(forge:define-module lisp ()
+  ())
+
 (defun implementation-version-string ()
   (load-time-value
    (format NIL "~a-~a-~a-~a"

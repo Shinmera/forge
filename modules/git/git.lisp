@@ -6,6 +6,9 @@
 
 (in-package #:org.shirakumo.forge.modules.git)
 
+(forge:define-module git ()
+  ())
+
 (defmethod forge:ensure-version ((_ (eql :git)))
   (forge:ensure-version (legit:git-describe :tags T)))
 
