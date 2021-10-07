@@ -109,3 +109,15 @@
         for found = (find k fields)
         unless found collect k
         unless found collect v))
+
+(defun ensure-instance (designator type &optional default)
+  (cond ((null designator)
+         (if default
+             (make-instance default)
+             (error "Need a~%  ~s" type)))
+        ((typep designator 'symbol)
+         (ensure-instance (make-instance designator) type))
+        ((typep designator type)
+         designator)
+        (T
+         (error "Don't know what to do with~%  ~s" designator))))

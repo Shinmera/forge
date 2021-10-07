@@ -8,6 +8,9 @@
 
 (defvar *projects* (make-hash-table :test 'equal))
 
+(defclass build-effect (effect)
+  ())
+
 (defclass parent-component (component)
   ((children :initform (make-hash-table :test 'equal) :reader children)))
 
@@ -23,13 +26,13 @@
                  :effect effect
                  :inner-effect (in-order-to operation project)))
 
-(defgeneric in-order-to (operation project))
 (defgeneric ensure-version (version-ish))
-
 (defgeneric parse-project (module project-definition))
 (defgeneric find-project (name &key version if-does-not-exist))
 (defgeneric register-project (project &optional source-path))
 (defgeneric delete-project (project))
+(defgeneric in-order-to (operation project))
+(defgeneric build (project &key policy executor))
 
 (defun list-projects ()
   (let ((projects ()))
@@ -103,6 +106,12 @@
                              (make-instance ',type :name ,name :version ,versiong))))
          (reinitialize-instance ,instance ,@initargs)
          (register-project ,instance ,(or *blueprint-truename* *compile-file-truename* *load-truename*))))))
+
+(defmethod build ((project project) &key (policy 'basic-policy) (executor 'linear-executor) (effect-type 'build-effect))
+  (let* ((effect (find-effect *database* effect-type (name project) (version project) T))
+         (plan (compute-plan effect (ensure-instance policy 'policy)))
+         (executor (ensure-instance executor 'executor)))
+    (execute plan executor)))
 
 (define-module forge ()
   ())
