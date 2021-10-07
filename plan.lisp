@@ -6,6 +6,15 @@
 
 (in-package #:org.shirakumo.forge)
 
+(support:define-condition* dependency-cycle-detected (error)
+  (effect) ("Dependency cycle detected around~%  ~a" effect))
+
+(support:define-condition* unsatisfiable-dependency (warning)
+  (dependency operation component) ("Cannot find any effects that satisfy~%  ~a~%of~%  ~a ~a" dependency operation component))
+
+(support:define-condition* unsatisfiable-effect (error)
+  (effect) ("Cannot compute a plan to reach~%  ~a~%no possible solutions found to resolve all constraints!" effect))
+
 (defvar *database*)
 
 (defclass database ()

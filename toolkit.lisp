@@ -48,6 +48,21 @@
                  (sleep (- 0.01 seconds-passed)))
                (setf ,last-check new-time))))))
 
+(defmacro with-retry ((&optional (restart-report "Retry the operation.")) &body body)
+  (let ((retry (gensym "RETRY")))
+    `(block NIL
+       (tagbody
+          ,retry
+          (flet ((retry ()
+                   (go ,retry)))
+            (restart-case
+                (return
+                  (progn
+                    ,@body))
+              (retry ()
+                :report ,restart-report
+                (retry))))))))
+
 (defmacro define-print-object-method (class (instance stream &key identity) &body body)
   `(defmethod print-object ((,instance ,class) ,stream)
      (print-unreadable-object (,instance ,stream :type T :identity ,identity)

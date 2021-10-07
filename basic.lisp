@@ -132,117 +132,127 @@
                    (when result (push result set))))))))))
 
 (defmethod compute-plan ((effect effect) (policy basic-policy))
-  (let ((visit (make-hash-table :test 'equal)))
-    ;; Note: We first compute the set of possible version constraints for all involved effects. If this set turns
-    ;;       out to be empty for the root effect, we know it's unsatisfiable overall. Most likely though we are
-    ;;       going to get a huge set of possible alternatives to pick from. We actually resolve this set in a second
-    ;;       step where we compute the actual plan.
-    (labels ((visit (effect)
-               (etypecase (gethash effect visit :none)
-                 ((eql :tentative) (error "Cycle."))
-                 (list (gethash effect visit :none))
-                 ((eql :none)
-                  (setf (gethash effect visit) :tentative)
-                  ;; Note: We eagerly select the source here, which can lead to an unsatisfiable plan even when
-                  ;;       another source might provide a satisfiable plan. However, for a first attempt, and for
-                  ;;       my own sanity's sake, I'm going to ignore this for the time being.
-                  (let* ((source (select-source policy effect (sources effect)))
-                         (component (second source))
-                         (operation (make-operation (first source) component effect policy))
-                         ;; Note: We only consider hard dependencies here. Optionals are pulled in in another phase
-                         ;;       once we have already settled on a version set for everything else. This means we
-                         ;;       potentially don't select optionals that might be possible in another set, but it
-                         ;;       massively simplifies the plan computation, and at this point I'm too tired of trying
-                         ;;       to come up with a holistic solution to continue doing the "absolutely right thing".
-                         (dependencies (remove-if-not #'hard-p (dependencies operation component)))
-                         (depchoices T))
-                    (dolist (dependency dependencies)
-                      (let ((choices ()))
-                        (do-effects (effect *database* (effect-type dependency) (parameters dependency) (version dependency))
-                          (dolist (choice (visit effect))
-                            (push choice choices)))
-                        (unless choices
-                          (error "Found no effects to satisfy~%  ~a" dependency))
-                        ;; This is where the combinatorial explosion happens
-                        (setf depchoices (unify-dependency-sets depchoices choices))))
-                    (setf (gethash effect visit)
-                          (if (eql T depchoices) (list (list effect))
-                              (loop for choice in depchoices
-                                    collect (list* effect choice)))))))))
-      (unless (visit effect)
-        (error "Unsatisfiable.")))
-    ;; Note: Next we select one set of the viable effects set and traverse the graph again. We now select the effect
-    ;;       that matches our dependency directly from the set that we used and don't bother with checking cycles.
-    ;;       We also now check optional dependencies and see if all of their dependencies are already contained in
-    ;;       our set. If so, we pull their steps in. Once we have constructed steps for each effect, we can then
-    ;;       figure out the head and tail steps and construct the actual plan object.
-    (let ((effects (select-effect-set policy (gethash effect visit)))
-          (step-table (make-hash-table :test 'eq)))
-      (labels ((find-effect (dependency)
-                 ;; FIXME: This seems slow as balls? Surely there's a better way...
-                 (let ((type (effect-type dependency))
-                       (parameters (parameters dependency)))
-                   (dolist (effect effects (error "WTF?"))
-                     (when (and (eql (type-of effect) type)
-                                (equal (parameters effect) parameters))
-                       (return effect)))))
-               (maybe-visit (dependency)
-                 (do-effects (effect *database* (effect-type dependency) (parameters dependency) (version dependency))
-                   (let* ((source (select-source policy effect (sources effect)))
-                          (component (second source))
-                          (operation (make-operation (first source) component effect policy))
-                          (dependencies (dependencies operation component)))
-                     (when (loop for dependency in dependencies
-                                 always (find-effect dependency))
-                       (return (visit effect))))))
-               (visit (effect)
-                 (or (gethash effect step-table)
+  (with-retry ("Retry computing the plan")
+    (let ((visit (make-hash-table :test 'equal)))
+      ;; Note: We first compute the set of possible version constraints for all involved effects. If this set turns
+      ;;       out to be empty for the root effect, we know it's unsatisfiable overall. Most likely though we are
+      ;;       going to get a huge set of possible alternatives to pick from. We actually resolve this set in a second
+      ;;       step where we compute the actual plan.
+      (labels ((visit (effect)
+                 (etypecase (gethash effect visit :none)
+                   ((eql :tentative)
+                    (error 'dependency-cycle-detected :effect effect))
+                   (list
+                    (gethash effect visit :none))
+                   ((eql :none)
+                    (setf (gethash effect visit) :tentative)
+                    ;; Note: We eagerly select the source here, which can lead to an unsatisfiable plan even when
+                    ;;       another source might provide a satisfiable plan. However, for a first attempt, and for
+                    ;;       my own sanity's sake, I'm going to ignore this for the time being.
+                    (let* ((source (select-source policy effect (sources effect)))
+                           (component (second source))
+                           (operation (make-operation (first source) component effect policy))
+                           ;; Note: We only consider hard dependencies here. Optionals are pulled in in another phase
+                           ;;       once we have already settled on a version set for everything else. This means we
+                           ;;       potentially don't select optionals that might be possible in another set, but it
+                           ;;       massively simplifies the plan computation, and at this point I'm too tired of trying
+                           ;;       to come up with a holistic solution to continue doing the "absolutely right thing".
+                           (dependencies (remove-if-not #'hard-p (dependencies operation component)))
+                           (depchoices T))
+                      (dolist (dependency dependencies)
+                        (let ((choices ()))
+                          (with-retry ("Retry resolving the dependency.")
+                            (do-effects (effect *database* (effect-type dependency) (parameters dependency) (version dependency))
+                              (dolist (choice (visit effect))
+                                (push choice choices)))
+                            (unless choices
+                              (restart-case
+                                  (warn 'unsatisfiable-dependency :dependency dependency :operation operation :component component)
+                                (use-value (effect)
+                                  :report "Specify an effect to use."
+                                  (check-type effect effect)
+                                  (dolist (choice (visit effect))
+                                    (push choice choices))))))
+                          ;; This is where the combinatorial explosion happens
+                          (setf depchoices (unify-dependency-sets depchoices choices))))
+                      (setf (gethash effect visit)
+                            (if (eql T depchoices) (list (list effect))
+                                (loop for choice in depchoices
+                                      collect (list* effect choice)))))))))
+        (unless (visit effect)
+          (error 'unsatisfiable-effect :effect effect)))
+      ;; Note: Next we select one set of the viable effects set and traverse the graph again. We now select the effect
+      ;;       that matches our dependency directly from the set that we used and don't bother with checking cycles.
+      ;;       We also now check optional dependencies and see if all of their dependencies are already contained in
+      ;;       our set. If so, we pull their steps in. Once we have constructed steps for each effect, we can then
+      ;;       figure out the head and tail steps and construct the actual plan object.
+      (let ((effects (select-effect-set policy (gethash effect visit)))
+            (step-table (make-hash-table :test 'eq)))
+        (labels ((find-effect (dependency)
+                   ;; FIXME: This seems slow as balls? Surely there's a better way...
+                   (let ((type (effect-type dependency))
+                         (parameters (parameters dependency)))
+                     (dolist (effect effects (error "WTF?"))
+                       (when (and (eql (type-of effect) type)
+                                  (equal (parameters effect) parameters))
+                         (return effect)))))
+                 (maybe-visit (dependency)
+                   (do-effects (effect *database* (effect-type dependency) (parameters dependency) (version dependency))
                      (let* ((source (select-source policy effect (sources effect)))
                             (component (second source))
                             (operation (make-operation (first source) component effect policy))
-                            (step (make-step operation component effect))
                             (dependencies (dependencies operation component)))
-                       (dolist (dependency dependencies)
-                         (let ((predecessor (if (hard-p dependency)
-                                                (visit (find-effect dependency))
-                                                (maybe-visit dependency))))
-                           (when predecessor
-                             (connect predecessor step))))
-                       (setf (gethash effect step-table) step)))))
-        (visit effect))
-      ;; Note: Now we do the additional step of "expanding" compound steps to allow broad-phasing of plans. We
-      ;;       then replace the original broad steps by tying up the successors and predecessors.
-      (loop for key being the hash-keys of step-table
-            for step being the hash-values of step-table
-            do (when (typep step 'compound-step)
-                 ;; Unhook the step from the plan
-                 (remhash key step-table)
-                 (dolist (predecessor (predecessors step))
-                   (setf (successors predecessor) (delete step (successors predecessor))))
-                 (dolist (successor (successors step))
-                   (setf (predecessors successor) (delete step (predecessors successor))))
-                 ;; Compute the inner plan and tie the steps together
-                 (let ((plan (compute-plan (inner-effect step) policy)))
-                   (loop for first across (first-steps plan)
-                         do (setf (gethash first step-table) first)
-                            (dolist (predecessor (predecessors step))
-                              (connect predecessor first)))
-                   (loop for final across (final-steps plan)
-                         do (setf (gethash final step-table) final)
-                            (dolist (successor (successors step))
-                              (connect final successor))))))
-      ;; Note: Finally we figure out the heads and tails of the whole plan by searching through all known steps
-      ;;       for ones without any successors or predecessors. This concludes the full plan.
-      (let ((first-steps (make-array 0 :adjustable T :fill-pointer T))
-            (final-steps (make-array 0 :adjustable T :fill-pointer T)))
-        (loop for step being the hash-values of step-table
-              do (cond ((null (predecessors step))
-                        (vector-push-extend step first-steps))
-                       ((null (successors step))
-                        (vector-push-extend step final-steps))))
-        (make-instance 'plan
-                       :first-steps first-steps
-                       :final-steps final-steps)))))
+                       (when (loop for dependency in dependencies
+                                   always (find-effect dependency))
+                         (return (visit effect))))))
+                 (visit (effect)
+                   (or (gethash effect step-table)
+                       (let* ((source (select-source policy effect (sources effect)))
+                              (component (second source))
+                              (operation (make-operation (first source) component effect policy))
+                              (step (make-step operation component effect))
+                              (dependencies (dependencies operation component)))
+                         (dolist (dependency dependencies)
+                           (let ((predecessor (if (hard-p dependency)
+                                                  (visit (find-effect dependency))
+                                                  (maybe-visit dependency))))
+                             (when predecessor
+                               (connect predecessor step))))
+                         (setf (gethash effect step-table) step)))))
+          (visit effect))
+        ;; Note: Now we do the additional step of "expanding" compound steps to allow broad-phasing of plans. We
+        ;;       then replace the original broad steps by tying up the successors and predecessors.
+        (loop for key being the hash-keys of step-table
+              for step being the hash-values of step-table
+              do (when (typep step 'compound-step)
+                   ;; Unhook the step from the plan
+                   (remhash key step-table)
+                   (dolist (predecessor (predecessors step))
+                     (setf (successors predecessor) (delete step (successors predecessor))))
+                   (dolist (successor (successors step))
+                     (setf (predecessors successor) (delete step (predecessors successor))))
+                   ;; Compute the inner plan and tie the steps together
+                   (let ((plan (compute-plan (inner-effect step) policy)))
+                     (loop for first across (first-steps plan)
+                           do (setf (gethash first step-table) first)
+                              (dolist (predecessor (predecessors step))
+                                (connect predecessor first)))
+                     (loop for final across (final-steps plan)
+                           do (setf (gethash final step-table) final)
+                              (dolist (successor (successors step))
+                                (connect final successor))))))
+        ;; Note: Finally we figure out the heads and tails of the whole plan by searching through all known steps
+        ;;       for ones without any successors or predecessors. This concludes the full plan.
+        (let ((first-steps (make-array 0 :adjustable T :fill-pointer T))
+              (final-steps (make-array 0 :adjustable T :fill-pointer T)))
+          (loop for step being the hash-values of step-table
+                do (cond ((null (predecessors step))
+                          (vector-push-extend step first-steps))
+                         ((null (successors step))
+                          (vector-push-extend step final-steps))))
+          (make-instance 'plan
+                         :first-steps first-steps
+                         :final-steps final-steps))))))
 
 (defclass linear-executor (executor)
   ((force :initarg :force :initform NIL :accessor force)

@@ -129,6 +129,14 @@
    #:with-client-eval)
   ;; plan.lisp
   (:export
+   #:dependency-cycle-detected
+   #:effect
+   #:unsatisfiable-dependency
+   #:dependency
+   #:operation
+   #:component
+   #:unsatisfiable-effect
+   #:effect
    #:*database*
    #:database
    #:map-effects
@@ -160,6 +168,7 @@
    #:select-source
    #:select-effect-set
    #:compute-plan
+   #:retry
    #:make-operation
    #:executor
    #:plan
