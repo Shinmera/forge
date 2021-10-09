@@ -74,8 +74,8 @@
                                              (0 ; Unknown
                                               (setf (cffi:mem-aref path :uchar (+ limit namelen)) (char-code #\/))
                                               (setf (cffi:mem-aref path :uchar (+ limit namelen 1)) 0)
-                                              (unless (scan (+ limit namelen))
-                                                (setf (cffi:mem-aref path :uchar (+ limit namelen 1)) 0)
+                                              (unless (scan (+ limit namelen 1))
+                                                (setf (cffi:mem-aref path :uchar (+ limit namelen)) 0)
                                                 (when (= 0 (strcmp name blueprint))
                                                   (funcall callback (cffi:foreign-string-to-lisp path)))))
                                              (4 ; Directory
