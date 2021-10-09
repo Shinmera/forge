@@ -21,11 +21,83 @@
     (load-blueprints (discover-blueprints (list path))))
   path)
 
+#+linux
+(progn ; Much faster scanning on linux using the d_type and direct byte comparisons.
+  (cffi:defcstruct (dirent :class dirent :conc-name dirent-)
+    (inode :size)
+    (offset :size)
+    (length :uint16)
+    (type :uint8)
+    (name :char :count 256))
+
+  (cffi:defcfun strlen :size
+    (path :pointer))
+
+  (cffi:defcfun strcmp :int
+    (a :pointer)
+    (b :pointer))
+
+  (cffi:defcfun strcpy :int
+    (dest :pointer)
+    (src :pointer))
+
+  (cffi:defcfun opendir :pointer
+    (dir :pointer))
+
+  (cffi:defcfun closedir :int
+    (dir :pointer))
+
+  (cffi:defcfun readdir :pointer
+    (dir :pointer))
+
+  (defun scan-directory (dir callback)
+    (cffi:with-foreign-string (blueprint "blueprint")
+      (cffi:with-foreign-object (path :char 4096)
+        (let ((length 0))
+          (cffi:lisp-string-to-foreign dir path 4096)
+          (setf length (strlen path))
+          (labels ((scan (limit)
+                     (let ((handle (opendir path)))
+                       (unless (cffi:null-pointer-p handle)
+                         (unwind-protect
+                              (loop for entry = (readdir handle)
+                                    until (cffi:null-pointer-p entry)
+                                    do (let* ((name (cffi:foreign-slot-pointer entry '(:struct dirent) 'name))
+                                              (namelen (strlen name))
+                                              (offset (+ limit namelen)))
+                                         (when (and (< offset 4096)
+                                                    (or (< 2 namelen)
+                                                        (and (/= (char-code #\.) (cffi:mem-aref name :char 0))
+                                                             (/= (char-code #\.) (cffi:mem-aref name :char 1)))))
+                                           (strcpy (cffi:inc-pointer path limit) name)
+                                           (case (dirent-type entry)
+                                             (0 ; Unknown
+                                              (setf (cffi:mem-aref path :uchar (+ limit namelen)) (char-code #\/))
+                                              (setf (cffi:mem-aref path :uchar (+ limit namelen 1)) 0)
+                                              (unless (scan (+ limit namelen))
+                                                (setf (cffi:mem-aref path :uchar (+ limit namelen 1)) 0)
+                                                (when (= 0 (strcmp name blueprint))
+                                                  (funcall callback (cffi:foreign-string-to-lisp path)))))
+                                             (4 ; Directory
+                                              (setf (cffi:mem-aref path :uchar (+ limit namelen)) (char-code #\/))
+                                              (setf (cffi:mem-aref path :uchar (+ limit namelen 1)) 0)
+                                              (scan (+ limit namelen 1)))
+                                             (8 ; Regular
+                                              (when (= 0 (strcmp name blueprint))
+                                                (funcall callback (cffi:foreign-string-to-lisp path))))))))
+                           (closedir handle))
+                         T))))
+            (scan length)))))))
+
+#-linux
+(defun scan-directory (dir callback)
+  (dolist (path (directory (merge-pathnames "**/blueprint" dir)))
+    (funcall callback path)))
+
 (defun discover-blueprints (&optional (paths *blueprint-search-paths*))
   (let ((blueprints ()))
     (dolist (path paths blueprints)
-      (dolist (path (directory (merge-pathnames "**/blueprint" path)))
-        (push path blueprints)))))
+      (scan-directory (namestring path) (lambda (path) (push path blueprints))))))
 
 (defun load-blueprints (&optional (paths (discover-blueprints)))
   (loop for path in paths

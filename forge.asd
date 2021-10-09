@@ -39,4 +39,5 @@
                :bordeaux-threads
                :verbose
                :alexandria
-               :ironclad))
+               :ironclad
+               :cffi))
