@@ -22,11 +22,11 @@
                (:file "artefact")
                (:file "network")
                (:file "plan")
-               (:file "basic")
-               (:file "dot")
                (:file "module")
                (:file "blueprint")
                (:file "project")
+               (:file "basic")
+               (:file "dot")
                (:file "test"))
   :depends-on (:forge-support
                :forge-communication

@@ -44,7 +44,7 @@
          (map-effects #',thunk ,database ,type ,parameters ,version)))))
 
 (defclass component (versioned-object)
-  ())
+  ((name :initarg :name :initform (support:arg! :name) :reader name)))
 
 (defgeneric supported-operations (component)
   (:method-combination append))

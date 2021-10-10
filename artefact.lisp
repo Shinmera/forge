@@ -33,9 +33,12 @@
 
 (defmethod find-registry (name (machine machine) &key (if-does-not-exist :error))
   (or (gethash name (registries machine))
-      (ecase if-does-not-exist
-        ((NIL) NIL)
-        (:error (error 'no-such-registry :name name :machine machine)))))
+      (etypecase if-does-not-exist
+        (null NIL)
+        ((eql :error)
+         (error 'no-such-registry :name name :machine machine))
+        ((or string pathname)
+         (setf (find-registry name machine) if-does-not-exist)))))
 
 (defmethod (setf find-registry) ((registry registry) name (machine machine) &key (if-exists :error))
   (when (gethash name (registries machine))
@@ -46,10 +49,10 @@
   (setf (gethash name (registries machine)) registry))
 
 (defmethod (setf find-registry) ((path string) name (machine machine) &key (if-exists :error))
-  (setf (find-registry name machine :if-exists if-exists) (make-instance 'registry :path path :name name)))
+  (setf (find-registry name machine :if-exists if-exists) (pathname path)))
 
 (defmethod (setf find-registry) ((path pathname) name (machine machine) &key (if-exists :error))
-  (let ((path (namestring (truename (ensure-directories-exist path)))))
+  (let ((path (directory-namestring (truename (ensure-directories-exist path)))))
     (setf (find-registry name machine :if-exists if-exists) path)))
 
 (defmethod artefact-pathname ((artefact artefact) (machine machine))

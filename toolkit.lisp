@@ -121,3 +121,9 @@
          designator)
         (T
          (error "Don't know what to do with~%  ~s" designator))))
+
+(defun enlist (a &rest args)
+  (if (listp a) a (list* a args)))
+
+(defun delist (a &optional (n 0))
+  (if (listp a) (nth n a) a))

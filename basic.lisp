@@ -367,3 +367,32 @@
                       (path (artefact component))
                       (output-file-type op component))))
     (find-artefact path *server* :registry :cache :if-does-not-exist :create)))
+
+(defclass artefact-project (project)
+  ((registry :accessor registry)))
+
+(defmethod shared-initialize ((project artefact-project) slots &key)
+  (unless (slot-boundp project 'registry)
+    (setf (registry project) (find-registry (name project) *server* :if-does-not-exist (blueprint project)))))
+
+(defmethod default-component-type ((project artefact-project))
+  'artefact-component)
+
+(defmethod normalize-component-spec ((project artefact-project) component)
+  (let* ((registry (registry project))
+         (root (path registry)))
+    (destructuring-bind (file . args) (enlist component)
+      (if (wild-pathname-p file)
+          (setf file (loop for file in (directory (merge-pathnames file root))
+                           collect (enough-namestring file root)))
+          (setf file (list file)))
+      (loop for file in files
+            collect (list* file args)))))
+
+(defmethod parse-component ((project artefact-project) spec)
+  (destructuring-bind (path . args) spec
+    (let ((type (getf args :type (default-component-type project)))
+          (name (getf args :name path))
+          (version (getf args :version (version project)))
+          (artefact (find-artefact path (registry project) :if-does-not-exist :create)))
+      (apply #'make-instance type :name name :artefact artefact :version version (removef args :type :name :artefact :version)))))

@@ -12,12 +12,21 @@
   ())
 
 (defclass parent-component (component)
-  ((children :initform (make-hash-table :test 'equal) :reader children)))
+  ((children :initform (make-hash-table :test 'equal) :accessor children)))
 
 (defclass project (parent-component)
-  ((name :initarg :name :initform (support:arg! :name) :reader name)
-   (blueprint :initarg :blueprint :initform *blueprint-truename* :reader blueprint)
+  ((blueprint :initarg :blueprint :initform *blueprint-truename* :reader blueprint)
    metadata))
+
+(defmethod shared-initialize :after ((project artefact-project) slots &key (components NIL components-p))
+  (when components-p
+    (let ((specs (loop for spec in components
+                       append (normalize-component-spec project spec)))
+          (children (make-hash-table :test 'equal)))
+      (loop for spec in specs
+            for component = (parse-component project spec)
+            do (setf (gethash (name component) children) component))
+      (setf (children project) children))))
 
 (defmethod make-step ((operation operation) (project project) (effect effect))
   (make-instance 'compound-step
@@ -33,6 +42,18 @@
 (defgeneric delete-project (project))
 (defgeneric in-order-to (operation project))
 (defgeneric build (project &key policy executor))
+(defgeneric normalize-component-spec (project spec))
+(defgeneric parse-component (project spec))
+(defgeneric default-component-type (project))
+
+(defmethod normalize-component-spec ((project project) spec)
+  (enlist spec))
+
+(defmethod parse-component ((project project) spec)
+  (destructuring-bind (name . args) spec
+    (let ((type (getf args :type (default-component-type project))))
+      (remf args :type)
+      (apply #'make-instance type args))))
 
 (defun list-projects ()
   (let ((projects ()))
@@ -117,7 +138,9 @@
   ())
 
 (defmethod parse-project ((forge forge) project-definition)
-  (list (or (getf project-definition :type) 'project)
-        (or (getf project-definition :name) (support:arg! :name))
+  (list (check-type (getf project-definition :type 'project) symbol)
+        (check-type (getf project-definition :name) string)
         (or (getf project-definition :version) 0)
-        (removef project-definition :type :name :version)))
+        (loop for (key val) on (removef project-definition :type :name :version)
+              do (check-type key symbol)
+              collect key collect `',val)))
