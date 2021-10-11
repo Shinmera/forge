@@ -9,6 +9,9 @@
 (forge:define-module lisp ()
   ())
 
+(defmethod forge:default-project-type ((module lisp))
+  'project)
+
 (defun implementation-version-string ()
   (load-time-value
    (format NIL "~a-~a-~a-~a"
@@ -17,6 +20,7 @@
            (lisp-implementation-type)
            (lisp-implementation-version))))
 
+(defclass project (forge:artefact-project) ())
 (defclass compile-effect (forge:effect) ())
 (defclass load-effect (forge:effect) ())
 
@@ -26,6 +30,9 @@
 
 (defmethod forge:supported-operations append ((file file))
   '(load-operation compile-file-operation load-fasl-operation))
+
+(defmethod forge:default-component-type ((project project))
+  'file)
 
 (defclass lisp-source-operation (forge:compiler-operation)
   ((verbose :initarg :verbose :initform NIL :accessor verbose)))

@@ -58,7 +58,9 @@
    #:name
    #:cache-directory
    #:compiler-output-operation
-   #:output-file-type)
+   #:output-file-type
+   #:artefact-project
+   #:registry)
   ;; blueprint.lisp
   (:export
    #:*blueprint-truename*
@@ -145,6 +147,7 @@
    #:register-effect
    #:do-effects
    #:component
+   #:name
    #:supported-operations
    #:operation
    #:dependencies
@@ -193,15 +196,18 @@
    #:parent-component
    #:children
    #:project
-   #:name
    #:blueprint
    #:metadata
    #:in-order-to
    #:ensure-version
-   #:parse-project
    #:find-project
    #:register-project
    #:delete-project
+   #:build
+   #:normalize-component-spec
+   #:parse-component
+   #:default-component-type
+   #:default-project-type
    #:list-projects
    #:define-project
    #:forge)

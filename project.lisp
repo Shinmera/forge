@@ -45,6 +45,7 @@
 (defgeneric normalize-component-spec (project spec))
 (defgeneric parse-component (project spec))
 (defgeneric default-component-type (project))
+(defgeneric default-project-type (module))
 
 (defmethod normalize-component-spec ((project project) spec)
   (enlist spec))
@@ -134,13 +135,16 @@
          (executor (ensure-instance executor 'executor)))
     (execute plan executor)))
 
-(define-module forge ()
-  ())
-
-(defmethod parse-project ((forge forge) project-definition)
-  (list (check-type (getf project-definition :type 'project) symbol)
+(defmethod parse-project ((module module) project-definition)
+  (list (check-type (getf project-definition :type (default-project-type module)) symbol)
         (check-type (getf project-definition :name) string)
         (or (getf project-definition :version) 0)
         (loop for (key val) on (removef project-definition :type :name :version)
               do (check-type key symbol)
               collect key collect `',val)))
+
+(define-module forge ()
+  ())
+
+(defmethod default-project-type ((module forge))
+  'project)
