@@ -137,7 +137,6 @@
 (defun make-blueprint-package ()
   (let ((package (make-package (format NIL "ORG.SHIRAKUMO.FORGE.BLUEPRINT.~a" (random-id)) :use ())))
     (sb-ext:add-package-local-nickname "FORGE" #.*package* package)
-    (import '(define-project) package)
     package))
 
 (defun load-blueprint (path)
@@ -151,16 +150,17 @@
     ;; FIXME: Instead of LOAD use something like Eclector to read and then
     ;;        selectively evaluate forms
     (with-standard-io-syntax
-      (let ((blueprint-package (make-blueprint-package))
-            (*blueprint-truename* path)
-            (*package* blueprint-package)
-            (*read-eval* NIL))
-        (unwind-protect (load temp NIL NIL :external-format :utf-8)
+      (let* ((hash (hash-file temp))
+             (blueprint-package (make-blueprint-package))
+             (*blueprint-truename* path)
+             (*package* blueprint-package)
+             (*read-eval* NIL))
+        (unwind-protect (load temp :verbose NIL :print NIL :external-format :utf-8)
           (ignore-errors (delete-package blueprint-package))
-          (ignore-errors (delete-file temp)))))
-    ;; Now that we successfully loaded, use the cached file properties.
-    (setf (gethash path *blueprint-timestamp-cache*)
-          (list date (hash-file temp)))
+          (ignore-errors (delete-file temp)))
+        ;; Now that we successfully loaded, use the cached file properties.
+        (setf (gethash path *blueprint-timestamp-cache*)
+              (list date hash))))
     path))
 
 (defun list-blueprints ()

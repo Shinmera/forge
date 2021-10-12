@@ -6,6 +6,12 @@
 
 (in-package #:org.shirakumo.forge)
 
+(support:define-condition* no-such-module (error)
+  (designator) ("A module with the name~%  ~s~%does not exist." designator))
+
+(support:define-condition* module-already-exists (error)
+  (designator) ("A module with the name~%  ~s~%already exists." designator))
+
 (defvar *module-entry-point-search-functions* (make-hash-table :test 'eql))
 
 (defun module-entry-point-search-function (name)
@@ -37,7 +43,7 @@
              :report "Use the provided value"
              value))))))
 
-(defvar *modules* (make-hash-table :test 'eql))
+(defvar *modules* (make-hash-table :test 'equal))
 
 (defclass module ()
   ((name :initarg :name :initform (support:arg! :name) :reader name)))
@@ -60,14 +66,14 @@
         (:reload))))
   (let ((entry-point (find-module-entry-point designator :if-does-not-exist if-does-not-exist)))
     (v:info :forge.module "Loading module for ~a" designator)
-    (load-module entry-point :if-exist :reload)))
+    (load-module entry-point :if-exists :reload)))
 
 (defmethod load-module ((designator pathname) &key if-exists if-does-not-exist)
   (declare (ignore if-exists if-does-not-exist))
   (load designator))
 
-(defmethod find-module ((designator symbol) &key (if-does-not-exist :error))
-  (let ((module (gethash designator *modules*)))
+(defmethod find-module (designator &key (if-does-not-exist :error))
+  (let ((module (gethash (string-downcase designator) *modules*)))
     (or module
         (ecase if-does-not-exist
           ((NIL) NIL)
@@ -80,7 +86,7 @@
   designator)
 
 (defmethod register-module ((module module))
-  (setf (gethash (name module) *modules*) module))
+  (setf (gethash (string-downcase (name module)) *modules*) module))
 
 (defmacro define-module (module superclasses slots &rest initargs)
   (let ((instance (gensym "INSTANCE")))
@@ -95,15 +101,17 @@
 
 #+asdf
 (define-module-entry-point-search-function asdf (designator)
-  (asdf:find-system (format NIL "forge-module-~a" designator) NIL))
+  (asdf:find-system (format NIL "forge-module-~(~a~)" designator) NIL))
 
 #+asdf
 (defmethod load-module ((designator asdf:system) &key if-exists if-does-not-exist)
   (declare (ignore if-does-not-exist))
-  (unless (asdf:needed-in-image-p 'asdf:load-op designator)
+  (unless (find (asdf:component-name designator) (asdf:already-loaded-systems) :test #'string=)
     (ecase if-exists
       ((NIL) (return-from load-module NIL))
       (:error (error 'module-already-exists :designator designator))
       (:reload)))
-  (asdf:load-system designator :force T :verbose NIL))
+  (let ((*package* (find-package :cl-user)))
+    (asdf:load-system designator :verbose NIL))
+  (find-module (asdf:component-name designator)))
 

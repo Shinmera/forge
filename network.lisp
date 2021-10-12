@@ -77,7 +77,7 @@
 (defmethod start ((default (eql T)) &rest initargs &key &allow-other-keys)
   (let ((start-args ()) (init-args ()))
     (loop for (key value) on initargs by #'cddr
-          do (cond ((find key '(:listen :address :port))
+          do (cond ((find key '(:listen :address :port :if-exists))
                     (push value start-args)
                     (push key start-args))
                    (T
@@ -87,9 +87,13 @@
       (apply #'make-instance 'server init-args))
     (apply #'start *server* start-args)))
 
-(defmethod start ((server server) &key (listen :tcp) (address "127.0.0.1") (port tcp:DEFAULT-PORT))
+(defmethod start ((server server) &key (listen :tcp) (address "127.0.0.1") (port tcp:DEFAULT-PORT) (if-exists :error))
   (case (communication:alive-p server)
-    ((T) (error "server is already running."))
+    ((T)
+     (ecase if-exists
+       (:error (error "server is already running."))
+       ((NIL) (return-from start NIL))
+       (:supersede (stop server))))
     ((NIL) (v:info :forge.network "Starting ~a..." server)))
   (unless (and (connection server) (communication:alive-p (connection server)))
     (setf (slot-value server 'connection)

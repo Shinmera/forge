@@ -104,7 +104,8 @@
    #:load-module
    #:find-module
    #:register-module
-   #:list-modules)
+   #:list-modules
+   #:define-module)
   ;; network.lisp
   (:export
    #:*server*

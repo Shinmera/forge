@@ -49,7 +49,7 @@
   (setf (gethash name (registries machine)) registry))
 
 (defmethod (setf find-registry) ((path string) name (machine machine) &key (if-exists :error))
-  (setf (find-registry name machine :if-exists if-exists) (pathname path)))
+  (setf (find-registry name machine :if-exists if-exists) (make-instance 'registry :path path :name name)))
 
 (defmethod (setf find-registry) ((path pathname) name (machine machine) &key (if-exists :error))
   (let ((path (directory-namestring (truename (ensure-directories-exist path)))))

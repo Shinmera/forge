@@ -18,7 +18,7 @@
   ((blueprint :initarg :blueprint :initform *blueprint-truename* :reader blueprint)
    metadata))
 
-(defmethod shared-initialize :after ((project artefact-project) slots &key (components NIL components-p))
+(defmethod shared-initialize :after ((project project) slots &key (components NIL components-p))
   (when components-p
     (let ((specs (loop for spec in components
                        append (normalize-component-spec project spec)))
@@ -59,6 +59,7 @@
 (defun list-projects ()
   (let ((projects ()))
     (loop for versions being the hash-values of *projects*
+          when (typep versions 'list)
           do (loop for project in versions
                    do (push project projects)))
     projects))
@@ -89,13 +90,13 @@
   (apply #'find-project (string name) args))
 
 (defmethod register-project ((project project) &optional source-path)
-  (let* ((name (string-downcase name))
+  (let* ((name (string-downcase (name project)))
          (versions (gethash name *projects*))
          (existing-path (gethash project *projects*)))
     (with-simple-restart (abort "Don't register the new project.")
       (when source-path
         (when (and existing-path (not (equal existing-path source-path)))
-          (warn 'project-source-path-changed :new source-path :old (second entry)))
+          (warn 'project-source-path-changed :new source-path :old existing-path))
         (setf (gethash project *projects*) source-path))
       (pushnew project versions)
       (setf (gethash name *projects*) versions))
@@ -121,7 +122,7 @@
   (let ((module (or (first (mapcar #'load-module modules)) (find-module 'forge)))
         (versiong (gensym "VERSION"))
         (instance (gensym "INSTANCE")))
-    (destructuring-bind (type name version . initargs) (parse-project module args)
+    (destructuring-bind (type name version initargs) (parse-project module args)
       `(let* ((*blueprint-truename* ,*blueprint-truename*)
               (,versiong (ensure-version ,version))
               (,instance (or (find-project ',name :version ,versiong :if-does-not-exist NIL)
@@ -136,12 +137,16 @@
     (execute plan executor)))
 
 (defmethod parse-project ((module module) project-definition)
-  (list (check-type (getf project-definition :type (default-project-type module)) symbol)
-        (check-type (getf project-definition :name) string)
-        (or (getf project-definition :version) 0)
-        (loop for (key val) on (removef project-definition :type :name :version)
-              do (check-type key symbol)
-              collect key collect `',val)))
+  (let ((type (getf project-definition :type (default-project-type module)))
+        (name (getf project-definition :name)))
+    (check-type type (and symbol (not null)))
+    (check-type name string)
+    (list type
+          name
+          (or (getf project-definition :version) 0)
+          (loop for (key val) on (removef project-definition :type :name :version) by #'cddr
+                do (check-type key symbol)
+                collect key collect `',val))))
 
 (define-module forge ()
   ())

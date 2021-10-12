@@ -46,6 +46,9 @@
 (defclass component (versioned-object)
   ((name :initarg :name :initform (support:arg! :name) :reader name)))
 
+(define-print-object-method* component
+  "~s ~a" name (to-string (version component)))
+
 (defgeneric supported-operations (component)
   (:method-combination append))
 

@@ -372,6 +372,7 @@
   ((registry :accessor registry)))
 
 (defmethod shared-initialize ((project artefact-project) slots &key)
+  (call-next-method)
   (unless (slot-boundp project 'registry)
     (setf (registry project) (find-registry (name project) *server* :if-does-not-exist (blueprint project)))))
 
@@ -383,11 +384,9 @@
          (root (path registry)))
     (destructuring-bind (file . args) (enlist component)
       (if (wild-pathname-p file)
-          (setf file (loop for file in (directory (merge-pathnames file root))
-                           collect (enough-namestring file root)))
-          (setf file (list file)))
-      (loop for file in files
-            collect (list* file args)))))
+          (loop for file in (directory (merge-pathnames file root))
+                collect (list* (enough-namestring file root) args))
+          (list (list* file args))))))
 
 (defmethod parse-component ((project artefact-project) spec)
   (destructuring-bind (path . args) spec
