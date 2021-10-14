@@ -26,8 +26,7 @@
                (:file "blueprint")
                (:file "project")
                (:file "basic")
-               (:file "dot")
-               (:file "test"))
+               (:file "dot"))
   :depends-on (:forge-support
                :forge-communication
                :closer-mop

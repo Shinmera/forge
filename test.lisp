@@ -14,5 +14,4 @@ Author: Nicolas Hafner <shinmera@tymoon.eu>
 
 (setf (find-registry :cache *server* :if-exists NIL) #p"~/.cache/forge/")
 (add-blueprint-search-path #.(make-pathname :name NIL :type NIL :defaults (or *compile-file-pathname* *load-pathname*)))
-
-#++(load-blueprints)
+(load-blueprints)
