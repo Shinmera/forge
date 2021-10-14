@@ -66,7 +66,7 @@
   (defun scan-directory (dir callback)
     (cffi:with-foreign-string (blueprint "blueprint")
       (cffi:with-foreign-object (path :char 4096)
-        (cffi:lisp-string-to-foreign dir path 4096)
+        (cffi:lisp-string-to-foreign (namestring dir) path 4096)
         (labels ((scan (fd)
                    (let ((handle (fdopendir fd)))
                      (unless (cffi:null-pointer-p handle)
@@ -108,7 +108,7 @@
 (defun discover-blueprints (&optional (paths *blueprint-search-paths*))
   (let ((blueprints ()))
     (dolist (path paths blueprints)
-      (scan-directory (namestring path) (lambda (path) (push path blueprints))))))
+      (scan-directory (truename path) (lambda (path) (push path blueprints))))))
 
 (defun load-blueprints (&optional (paths (discover-blueprints)))
   (loop for path in paths

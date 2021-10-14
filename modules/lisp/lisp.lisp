@@ -20,7 +20,6 @@
            (lisp-implementation-type)
            (lisp-implementation-version))))
 
-(defclass project (forge:artefact-project) ())
 (defclass compile-effect (forge:effect) ())
 (defclass load-effect (forge:effect) ())
 
@@ -31,15 +30,16 @@
 (defmethod forge:supported-operations append ((file file))
   '(load-operation compile-file-operation load-fasl-operation))
 
-(defmethod forge:default-component-type ((project project))
-  'file)
+(defclass lisp-compiler-operation (forge:compiler-operation)
+  ())
 
-(defclass lisp-source-operation (forge:compiler-operation)
-  ((verbose :initarg :verbose :initform NIL :accessor verbose)))
-
-(defmethod forge:select-compiler ((ope lisp-source-operation) (policy forge:basic-policy))
+(defmethod forge:select-compiler ((op lisp-compiler-operation) (policy forge:basic-policy))
   ;; FIXME: need more info on the client's available compiler here...
-  )
+  (make-instance 'forge:compiler :name (lisp-implementation-type)
+                                 :version (forge:version-from-string (lisp-implementation-version))))
+
+(defclass lisp-source-operation (lisp-compiler-operation)
+  ((verbose :initarg :verbose :initform NIL :accessor verbose)))
 
 (defmethod forge:dependencies append ((op lisp-source-operation) (component file))
   (let ((artefact (forge:artefact component)))
@@ -66,6 +66,7 @@
   ())
 
 (defmethod forge:make-effect ((op compile-file-operation) (component file))
+  (call-next-method)
   (forge:ensure-effect op component 'compile-effect (forge:artefact component)))
 
 (defmethod forge:output-file-type ((op compile-file-operation) (component file))
@@ -78,15 +79,41 @@
                    :verbose ,(verbose op)
                    :print ,(verbose op))))
 
-(defclass load-fasl-operation (forge:operation)
+(defclass load-fasl-operation (forge:compiler-input-operation lisp-compiler-operation)
   ())
 
 (defmethod forge:make-effect ((op load-fasl-operation) (component file))
   (forge:ensure-effect op component 'load-effect (forge:artefact component)))
 
-(defmethod forge:dependencies append ((op load-fasl-operation) (component file))
-  (list (forge:depend 'forge:artefact-effect (forge:output-artefact 'compile-file-operation component))))
+(defmethod forge:input-file-type ((op load-fasl-operation) (component file))
+  "fasl")
 
 (defmethod forge:perform ((op load-fasl-operation) (component file) client)
   (forge:with-client-eval (client)
-    `(load ,(forge:artefact-pathname (forge:output-artefact 'compile-file-operation component) client))))
+    `(load ,(forge:artefact-pathname (forge:input-artefact op component) client))))
+
+(defclass load-into-image-operation (forge:operation)
+  ())
+
+(defclass project (forge:artefact-project)
+  ())
+
+(defmethod forge:supported-operations append ((project project))
+  '(load-operation load-into-image-operation))
+
+(defmethod forge:make-effect ((op load-into-image-operation) (project project))
+  (forge:ensure-effect op project 'forge::build-effect (forge:name project)))
+
+(defmethod forge:make-effect ((op load-operation) (project project))
+  (forge:ensure-effect op project 'load-effect (forge:name project)))
+
+(defmethod forge:in-order-to ((effect forge::build-effect) (project project))
+  (forge:find-effect T 'load-effect (forge:name project) (forge:version project)))
+
+(defmethod forge:dependencies append ((op load-operation) (project project))
+  (loop for component being the hash-values of (forge:children project)
+        collect (forge:depend 'load-effect (forge:artefact component)
+                              :version (forge:version component))))
+
+(defmethod forge:default-component-type ((project project))
+  'file)

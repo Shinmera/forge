@@ -13,5 +13,6 @@ Author: Nicolas Hafner <shinmera@tymoon.eu>
 (start T :if-exists NIL)
 
 (setf (find-registry :cache *server* :if-exists NIL) #p"~/.cache/forge/")
-(add-blueprint-search-path #.(make-pathname :name NIL :type NIL :defaults (or *compile-file-pathname* *load-pathname*)))
+(add-blueprint-search-path #p"~/Projects/cl/forge/")
 (load-blueprints)
+(dot (build "test" :executor 'dummy-executor) #p"~/a.png")

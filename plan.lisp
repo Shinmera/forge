@@ -25,10 +25,19 @@
 (defgeneric find-effect (database type parameters version &optional error))
 (defgeneric register-effect (database effect))
 
+(defmethod map-effects (function (database (eql T)) &optional type parameters version)
+  (map-effects function *database* type parameters version))
+
+(defmethod list-effects ((database (eql T)) &optional type parameters version)
+  (list-effects *database* type parameters version))
+
 (defmethod list-effects ((database database) &optional type parameters version)
   (let ((effects ()))
     (map-effects (lambda (e) (push e effects)) database type parameters version)
     effects))
+
+(defmethod find-effect ((database (eql T)) type parameters version &optional (error T))
+  (find-effect *database* type parameters version error))
 
 (defmethod find-effect ((database database) type parameters version &optional (error T))
   (map-effects (lambda (e) (return-from find-effect e)) database type parameters version)
@@ -55,7 +64,7 @@
 (defmethod supported-operations append ((component component))
   ())
 
-(defmethod initialize-instance :after ((component component) &key)
+(defmethod shared-initialize :after ((component component) slots &key)
   (dolist (op (supported-operations component))
     (make-effect op component)))
 
@@ -96,7 +105,7 @@
 
 (defmethod print-object ((dependency dependency) stream)
   (print-unreadable-object (dependency stream :type T)
-    (format stream "~s ~s ~s ~@[HARD~]"
+    (format stream "~s ~s ~a ~@[HARD~]"
             (effect-type dependency) (parameters dependency) (to-string (version dependency)) (hard-p dependency))))
 
 (defclass effect (versioned-object)
@@ -142,15 +151,15 @@
 (defgeneric select-source (policy effect sources))
 (defgeneric select-effect-set (policy sets))
 (defgeneric compute-plan (effect policy))
-(defgeneric make-operation (operation component effect policy))
+(defgeneric make-operation (operation policy))
 
 (defmethod in-order-to ((effect effect) (policy policy))
   (select-source policy effect (sources effect)))
 
-(defmethod make-operation ((operation symbol) (component component) (effect effect) (policy policy))
-  (make-operation (make-instance operation) component effect policy))
+(defmethod make-operation ((operation symbol) (policy policy))
+  (make-operation (make-instance operation) policy))
 
-(defmethod make-operation ((operation operation) (component component) (effect effect) (policy policy))
+(defmethod make-operation ((operation operation) (policy policy))
   operation)
 
 (defclass executor ()
@@ -209,3 +218,4 @@
 ;; FIXME: ensure 'same-system deps' are assigned to same client or same machine.
 ;; FIXME: actually cache stuff
 ;; FIXME: getting artefacts from one client to another
+;; FIXME: way of declaring "latest version" of known set

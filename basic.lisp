@@ -86,9 +86,10 @@
 (defmethod select-source ((policy basic-policy) (effect effect) sources)
   (first sources))
 
-(defmethod make-operation ((operation symbol) (component component) (effect effect) (policy basic-policy))
+(defmethod make-operation ((operation symbol) (policy basic-policy))
   (or (gethash operation (operation-cache policy))
-      (setf (gethash operation (operation-cache policy)) (make-instance operation))))
+      (setf (gethash operation (operation-cache policy))
+            (make-operation (make-instance operation) policy))))
 
 (defmethod select-effect-set ((policy basic-policy) sets)
   ;; FIXME: This is not stable as the order of effects within a set is not stable.
@@ -151,7 +152,7 @@
                     ;;       my own sanity's sake, I'm going to ignore this for the time being.
                     (let* ((source (select-source policy effect (sources effect)))
                            (component (second source))
-                           (operation (make-operation (first source) component effect policy))
+                           (operation (make-operation (first source) policy))
                            ;; Note: We only consider hard dependencies here. Optionals are pulled in in another phase
                            ;;       once we have already settled on a version set for everything else. This means we
                            ;;       potentially don't select optionals that might be possible in another set, but it
@@ -200,7 +201,7 @@
                    (do-effects (effect *database* (effect-type dependency) (parameters dependency) (version dependency))
                      (let* ((source (select-source policy effect (sources effect)))
                             (component (second source))
-                            (operation (make-operation (first source) component effect policy))
+                            (operation (make-operation (first source) policy))
                             (dependencies (dependencies operation component)))
                        (when (loop for dependency in dependencies
                                    always (find-effect dependency))
@@ -209,7 +210,7 @@
                    (or (gethash effect step-table)
                        (let* ((source (select-source policy effect (sources effect)))
                               (component (second source))
-                              (operation (make-operation (first source) component effect policy))
+                              (operation (make-operation (first source) policy))
                               (step (make-step operation component effect))
                               (dependencies (dependencies operation component)))
                          (dolist (dependency dependencies)
@@ -253,6 +254,12 @@
           (make-instance 'plan
                          :first-steps first-steps
                          :final-steps final-steps))))))
+
+(defclass dummy-executor (executor)
+  ())
+
+(defmethod execute ((plan plan) (executor dummy-executor))
+  plan)
 
 (defclass linear-executor (executor)
   ((force :initarg :force :initform NIL :accessor force)
@@ -304,6 +311,8 @@
 (defclass artefact-output-operation (operation)
   ())
 
+(defgeneric output-artefact (operation component))
+
 (defmethod output-artefact ((op symbol) component)
   (output-artefact (prototype op) component))
 
@@ -313,6 +322,17 @@
         (promise:-> promise-ish
           (:then () (notice-file (output-artefact op component) client)))
         promise-ish)))
+
+(defclass artefact-input-operation (operation)
+  ())
+
+(defmethod dependencies append ((op artefact-input-operation) (component artefact-component))
+  (list (depend 'artefact-effect (input-artefact op component))))
+
+(defgeneric input-artefact (operation component))
+
+(defmethod input-artefact ((op symbol) component)
+  (input-artefact (prototype op) component))
 
 (defclass ensure-artefact-operation (artefact-output-operation)
   ())
@@ -335,7 +355,7 @@
 
 (defgeneric select-compiler (operation policy))
 
-(defmethod make-operation ((operation compiler-operation) (component component) (effect effect) (policy policy))
+(defmethod make-operation ((operation compiler-operation) (policy policy))
   (setf (compiler operation) (select-compiler operation policy))
   operation)
 
@@ -366,6 +386,21 @@
                       (to-string (version component))
                       (path (artefact component))
                       (output-file-type op component))))
+    (find-artefact path *server* :registry :cache :if-does-not-exist :create)))
+
+(defclass compiler-input-operation (artefact-input-operation compiler-operation)
+  ())
+
+(defgeneric input-file-type (operation component))
+
+(defmethod input-artefact ((op compiler-input-operation) (component artefact-component))
+  (let ((path (format NIL "~(~a/~a/~a/~a/~)~a.~a"
+                      (cache-directory (compiler op))
+                      (target-platform op)
+                      (registry (artefact component))
+                      (to-string (version component))
+                      (path (artefact component))
+                      (input-file-type op component))))
     (find-artefact path *server* :registry :cache :if-does-not-exist :create)))
 
 (defclass artefact-project (project)

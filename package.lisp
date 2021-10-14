@@ -49,6 +49,8 @@
    #:artefact
    #:artefact-output-operation
    #:output-artefact
+   #:artefact-input-operation
+   #:input-artefact
    #:ensure-artefact-operation
    #:compiler-operation
    #:compiler
@@ -59,6 +61,8 @@
    #:cache-directory
    #:compiler-output-operation
    #:output-file-type
+   #:compiler-input-operation
+   #:input-file-type
    #:artefact-project
    #:registry)
   ;; blueprint.lisp

@@ -6,6 +6,9 @@
 
 (in-package #:org.shirakumo.forge)
 
+(support:define-condition* no-such-project (error)
+  (name version) ("Could not find a project with name~%  ~a~%and matching version~%  ~a" name (to-string (version condition))))
+
 (defvar *projects* (make-hash-table :test 'equal))
 
 (defclass build-effect (effect)
@@ -31,9 +34,9 @@
 (defmethod make-step ((operation operation) (project project) (effect effect))
   (make-instance 'compound-step
                  :operation operation
-                 :component component
+                 :component project
                  :effect effect
-                 :inner-effect (in-order-to operation project)))
+                 :inner-effect (in-order-to effect project)))
 
 (defgeneric ensure-version (version-ish))
 (defgeneric parse-project (module project-definition))
@@ -76,15 +79,15 @@
 (defmethod ensure-version ((file pathname))
   (version-from-string (alexandria:read-file-into-string file)))
 
-(defmethod find-project ((name string) &key (version (constraint T)) (if-does-not-exist :error))
+(defmethod find-project ((name string) &key (version (parse-constraint T)) (if-does-not-exist :error))
   (let* ((name (string-downcase name))
          (versions (gethash name *projects*)))
     (or (loop for project in versions
-              when (version-match-p (version project) constraint)
+              when (version-match-p (version project) version)
               return project)
         (ecase if-does-not-exist
           ((NIL) (return-from find-project NIL))
-          (:error (error 'no-such-project :name name))))))
+          (:error (error 'no-such-project :name name :version version))))))
 
 (defmethod find-project ((name symbol) &rest args)
   (apply #'find-project (string name) args))
@@ -129,6 +132,9 @@
                              (make-instance ',type :name ,name :version ,versiong))))
          (reinitialize-instance ,instance ,@initargs)
          (register-project ,instance ,(or *blueprint-truename* *compile-file-truename* *load-truename*))))))
+
+(defmethod build (project &rest args)
+  (apply #'build (find-project project :if-does-not-exist :error) args))
 
 (defmethod build ((project project) &key (policy 'basic-policy) (executor 'linear-executor) (effect-type 'build-effect))
   (let* ((effect (find-effect *database* effect-type (name project) (version project) T))
