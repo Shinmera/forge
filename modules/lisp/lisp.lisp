@@ -23,7 +23,7 @@
 (defclass compile-effect (forge:effect) ())
 (defclass load-effect (forge:effect) ())
 
-(defclass file (forge:dependencies-component forge:artefact-component)
+(defclass file (forge:child-component forge:dependencies-component forge:artefact-component)
   ((forge:version :initform (load-time-value (make-instance 'forge:integer-version)))))
 
 (defmethod forge:supported-operations append ((file file))

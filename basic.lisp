@@ -415,16 +415,11 @@
                       (input-file-type op component))))
     (find-artefact path *server* :registry :compiler :if-does-not-exist :create)))
 
-(defclass artefact-project (project)
-  ((registry :accessor registry)))
-
-(defmethod shared-initialize ((project artefact-project) slots &key)
-  (call-next-method)
-  (unless (slot-boundp project 'registry)
-    (setf (registry project) (find-registry (name project) *server* :if-does-not-exist (blueprint project)))))
-
 (defclass parent-component (component)
   ((children :initform (make-hash-table :test 'equal) :accessor children)))
+
+(defclass child-component (component)
+  ((parent :initarg :parent :initform (support:arg! :parent) :reader parent)))
 
 (defclass dependencies-component (component)
   ((depends-on :initform () :accessor depends-on)))

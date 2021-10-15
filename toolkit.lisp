@@ -63,6 +63,16 @@
                 :report ,restart-report
                 (retry))))))))
 
+(defmacro with-cleanup-on-unwind (cleanup &body body)
+  (let ((clean (gensym "CLEAN")))
+    `(let ((,clean NIL))
+       (unwind-protect
+            (multiple-value-prog1
+                (progn ,@body)
+              (setf ,clean T))
+         (unless ,clean
+           ,cleanup)))))
+
 (defmacro define-print-object-method (class (instance stream &key identity) &body body)
   `(defmethod print-object ((,instance ,class) ,stream)
      (print-unreadable-object (,instance ,stream :type T :identity ,identity)

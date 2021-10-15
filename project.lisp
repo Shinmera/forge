@@ -20,33 +20,35 @@
 
 (defmethod shared-initialize :after ((project project) slots &key (components NIL components-p))
   (when components-p
-    (let ((specs (loop for spec in components
-                       append (normalize-component-spec project spec)))
-          (children (make-hash-table :test 'equal)))
-      (loop for spec in specs
-            for component = (parse-component project spec)
-            do (setf (gethash (name component) children) component))
-      (setf (children project) children))))
-
-(defmethod default-component-type ((project artefact-project))
-  'artefact-component)
-
-(defmethod normalize-component-spec ((project artefact-project) component)
-  (let* ((registry (registry project))
-         (root (path registry)))
-    (destructuring-bind (file . args) (enlist component)
-      (if (wild-pathname-p file)
-          (loop for file in (directory (merge-pathnames file root))
-                collect (list* (enough-namestring file root) args))
-          (list (list* file args))))))
-
-(defmethod parse-component ((project artefact-project) spec)
-  (destructuring-bind (path . args) spec
-    (let ((type (getf args :type (default-component-type project)))
-          (name (getf args :name path))
-          (version (getf args :version (version project)))
-          (artefact (find-artefact path (registry project) :if-does-not-exist :create)))
-      (apply #'make-instance type :name name :artefact artefact :version version (removef args :type :name :artefact :version)))))
+    (flet ((find-or-init (type initargs)
+             (let ((existing (gethash (getf initargs :name) (children project))))
+               (if existing
+                   (if (eql type (class-name (class-of existing)))
+                       existing
+                       (change-class existing type))
+                   (apply #'allocate-instance (find-class type) initargs)))))
+      ;; First, parse all specs
+      (let ((specs (loop for spec in components
+                         append (loop for spec in (normalize-component-spec project spec)
+                                      collect (parse-component project spec))))
+            (old-table (children project))
+            (children (make-hash-table :test 'equal)))
+        ;; Next update/allocate the entire table, this should avoid triggering
+        ;; shared-initialize on any passed initargs.
+        (loop for (type . initargs) in specs
+              for component = (find-or-init type initargs)
+              do (setf (gethash (name component) children) component))
+        (setf (children project) children)
+        ;; Finally now that all component objects are known, reinitialize to
+        ;; trigger shared-initialize methods on initargs that might need to resolve.
+        ;; FIXME: How do we also undo effects created in the db?
+        ;;        Need some kinda transactioning...
+        ;;        Generally also need to clean up leftover effects when a project is
+        ;;        redefined though, wonder how to do that nicely.
+        (with-cleanup-on-unwind (setf (children project) old-table)
+          (loop for spec in specs
+                for component = (gethash (getf (rest spec) :name) children)
+                do (apply #'reinitialize-instance component (rest spec))))))))
 
 (defmethod make-step ((operation operation) (project project) (effect build-effect))
   (make-instance 'compound-step
@@ -74,7 +76,7 @@
   (destructuring-bind (name . args) spec
     (let ((type (getf args :type (default-component-type project))))
       (remf args :type)
-      (apply #'make-instance type args))))
+      (list* type :name name args))))
 
 (defun list-projects ()
   (let ((projects ()))
@@ -176,3 +178,37 @@
 
 (defmethod default-project-type ((module forge))
   'project)
+
+
+(defclass artefact-project (project)
+  ((registry :accessor registry)))
+
+(defmethod shared-initialize ((project artefact-project) slots &key)
+  (call-next-method)
+  (unless (slot-boundp project 'registry)
+    (setf (registry project) (find-registry (name project) *server* :if-does-not-exist (blueprint project)))))
+
+(defmethod default-component-type ((project artefact-project))
+  'artefact-component)
+
+(defmethod normalize-component-spec ((project artefact-project) component)
+  (let* ((registry (registry project))
+         (root (path registry)))
+    (destructuring-bind (file . args) (enlist component)
+      (if (wild-pathname-p file)
+          (loop for file in (directory (merge-pathnames file root))
+                collect (list* (enough-namestring file root) args))
+          (list (list* file args))))))
+
+(defmethod parse-component ((project artefact-project) spec)
+  (destructuring-bind (path . args) spec
+    (let ((type (getf args :type (default-component-type project)))
+          (name (getf args :name path))
+          (version (getf args :version (version project)))
+          (artefact (find-artefact path (registry project) :if-does-not-exist :create)))
+      (list* type
+             :name name
+             :artefact artefact
+             :version version
+             :parent project
+             (removef args :type :name :artefact :version)))))

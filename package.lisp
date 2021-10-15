@@ -68,6 +68,8 @@
    #:registry
    #:parent-component
    #:children
+   #:child-component
+   #:parent
    #:dependencies-component
    #:depends-on
    #:normalize-dependency-spec)
