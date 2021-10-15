@@ -14,10 +14,7 @@
 (defclass build-effect (effect)
   ())
 
-(defclass parent-component (component)
-  ((children :initform (make-hash-table :test 'equal) :accessor children)))
-
-(defclass project (parent-component)
+(defclass project (dependencies-component parent-component)
   ((blueprint :initarg :blueprint :initform *blueprint-truename* :reader blueprint)
    metadata))
 
@@ -30,6 +27,26 @@
             for component = (parse-component project spec)
             do (setf (gethash (name component) children) component))
       (setf (children project) children))))
+
+(defmethod default-component-type ((project artefact-project))
+  'artefact-component)
+
+(defmethod normalize-component-spec ((project artefact-project) component)
+  (let* ((registry (registry project))
+         (root (path registry)))
+    (destructuring-bind (file . args) (enlist component)
+      (if (wild-pathname-p file)
+          (loop for file in (directory (merge-pathnames file root))
+                collect (list* (enough-namestring file root) args))
+          (list (list* file args))))))
+
+(defmethod parse-component ((project artefact-project) spec)
+  (destructuring-bind (path . args) spec
+    (let ((type (getf args :type (default-component-type project)))
+          (name (getf args :name path))
+          (version (getf args :version (version project)))
+          (artefact (find-artefact path (registry project) :if-does-not-exist :create)))
+      (apply #'make-instance type :name name :artefact artefact :version version (removef args :type :name :artefact :version)))))
 
 (defmethod make-step ((operation operation) (project project) (effect build-effect))
   (make-instance 'compound-step

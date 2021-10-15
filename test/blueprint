@@ -4,3 +4,23 @@
   :version 0
   :components
   ("*.lisp"))
+
+(forge:define-project (lisp)
+  :name "test-subcomponent"
+  :version 0
+  :components
+  ("*.lisp")
+  :depends-on (test))
+
+(forge:define-project (lisp)
+  :name "other-test"
+  :version 0
+  :components
+  ("*.lisp"))
+
+(forge:define-project (lisp)
+  :name "megaproject"
+  :version 0
+  :components
+  ("*.lisp")
+  :depends-on (test-subcomponent other-test))

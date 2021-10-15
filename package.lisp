@@ -65,7 +65,12 @@
    #:compiler-input-operation
    #:input-file-type
    #:artefact-project
-   #:registry)
+   #:registry
+   #:parent-component
+   #:children
+   #:dependencies-component
+   #:depends-on
+   #:normalize-dependency-spec)
   ;; blueprint.lisp
   (:export
    #:*blueprint-truename*
@@ -199,8 +204,6 @@
    #:connect)
   ;; project.lisp
   (:export
-   #:parent-component
-   #:children
    #:project
    #:blueprint
    #:metadata

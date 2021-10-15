@@ -423,22 +423,16 @@
   (unless (slot-boundp project 'registry)
     (setf (registry project) (find-registry (name project) *server* :if-does-not-exist (blueprint project)))))
 
-(defmethod default-component-type ((project artefact-project))
-  'artefact-component)
+(defclass parent-component (component)
+  ((children :initform (make-hash-table :test 'equal) :accessor children)))
 
-(defmethod normalize-component-spec ((project artefact-project) component)
-  (let* ((registry (registry project))
-         (root (path registry)))
-    (destructuring-bind (file . args) (enlist component)
-      (if (wild-pathname-p file)
-          (loop for file in (directory (merge-pathnames file root))
-                collect (list* (enough-namestring file root) args))
-          (list (list* file args))))))
+(defclass dependencies-component (component)
+  ((depends-on :initform () :accessor depends-on)))
 
-(defmethod parse-component ((project artefact-project) spec)
-  (destructuring-bind (path . args) spec
-    (let ((type (getf args :type (default-component-type project)))
-          (name (getf args :name path))
-          (version (getf args :version (version project)))
-          (artefact (find-artefact path (registry project) :if-does-not-exist :create)))
-      (apply #'make-instance type :name name :artefact artefact :version version (removef args :type :name :artefact :version)))))
+(defmethod shared-initialize :after ((component dependencies-component) slots &key (depends-on NIL dependencies-p))
+  (when dependencies-p
+    (setf (depends-on component)
+          (loop for dependency in depends-on
+                collect (normalize-dependency-spec component dependency)))))
+
+(defgeneric normalize-dependency-spec (component dependency))

@@ -23,12 +23,17 @@
 (defclass compile-effect (forge:effect) ())
 (defclass load-effect (forge:effect) ())
 
-(defclass file (forge:artefact-component)
-  ((depends-on :initarg :depends-on :initform () :reader depends-on)
-   (forge:version :initform (load-time-value (make-instance 'forge:integer-version)))))
+(defclass file (forge:dependencies-component forge:artefact-component)
+  ((forge:version :initform (load-time-value (make-instance 'forge:integer-version)))))
 
 (defmethod forge:supported-operations append ((file file))
   '(load-operation compile-file-operation load-fasl-operation))
+
+(defmethod forge:normalize-dependency-spec ((file file) dep)
+  (let ((component (gethash dep (forge:children (forge:parent file)))))
+    (unless component
+      (error "Fuck"))
+    (forge:artefact component)))
 
 (defclass lisp-compiler-operation (forge:compiler-operation)
   ())
@@ -42,11 +47,8 @@
   ((verbose :initarg :verbose :initform NIL :accessor verbose)))
 
 (defmethod forge:dependencies append ((op lisp-source-operation) (component file))
-  (let ((artefact (forge:artefact component)))
-    (loop for dependency in (depends-on component)
-          collect (etypecase dependency
-                    (forge:artefact (forge:depend 'artefact-effect dependency))
-                    (file (forge:depend 'load-effect dependency))))))
+  (loop for dependency in (forge:depends-on component)
+        collect (forge:depend 'load-effect dependency :version (forge:version component))))
 
 (defclass load-operation (lisp-source-operation)
   ())
@@ -101,6 +103,29 @@
 
 (defmethod forge:make-effect ((op load-into-image-operation) (project project))
   (forge:ensure-effect op project 'forge::build-effect (forge:name project)))
+
+(defmethod forge:normalize-dependency-spec ((project project) spec)
+  (let ((spec (forge::enlist spec)))
+    (flet ((parse-project-spec (name &key (effect 'load-effect) (version T) weak)
+             (forge:depend effect
+                           (string-downcase name)
+                           :version (forge:parse-constraint version)
+                           :hard (not weak)))
+           (parse-effect-spec (type parameters &key (version T) (hard T))
+             (forge:depend type
+                           parameters
+                           :version (forge:parse-constraint version)
+                           :hard hard)))
+      (case (first spec)
+        (:effect
+         (apply #'parse-effect-spec (rest spec)))
+        (:project
+         (apply #'parse-project-spec (rest spec)))
+        (T
+         (apply #'parse-project-spec spec))))))
+
+(defmethod forge:dependencies append ((op load-into-image-operation) (project project))
+  (forge:depends-on project))
 
 (defmethod forge:make-effect ((op load-operation) (project project))
   (forge:ensure-effect op project 'load-effect (forge:name project)))
