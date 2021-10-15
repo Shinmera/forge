@@ -31,7 +31,7 @@
             do (setf (gethash (name component) children) component))
       (setf (children project) children))))
 
-(defmethod make-step ((operation operation) (project project) (effect effect))
+(defmethod make-step ((operation operation) (project project) (effect build-effect))
   (make-instance 'compound-step
                  :operation operation
                  :component project

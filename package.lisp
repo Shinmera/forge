@@ -49,6 +49,7 @@
    #:artefact
    #:artefact-output-operation
    #:output-artefact
+   #:realize-artefact
    #:artefact-input-operation
    #:input-artefact
    #:ensure-artefact-operation

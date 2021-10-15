@@ -23,6 +23,9 @@
   ((name :initarg :name :initform (support:arg! :name) :reader name)
    (registries :initform (make-hash-table :test 'equal) :reader registries)))
 
+(defmethod initialize-instance :after ((machine machine) &key)
+  (setf (find-registry :compiler machine) (make-instance 'registry :name :compiler :path NIL)))
+
 (define-print-object-method* machine "~s" name)
 
 (defgeneric find-registry (name machine &key if-does-not-exist))

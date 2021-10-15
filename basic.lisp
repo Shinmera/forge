@@ -312,15 +312,19 @@
   ())
 
 (defgeneric output-artefact (operation component))
+(defgeneric realize-artefact (artefact operation))
 
 (defmethod output-artefact ((op symbol) component)
   (output-artefact (prototype op) component))
+
+(defmethod realize-artefact ((artefact artefact) (operation operation))
+  artefact)
 
 (defmethod perform :around ((op artefact-output-operation) component client)
   (let ((promise-ish (call-next-method)))
     (if (typep promise-ish 'promise:promise)
         (promise:-> promise-ish
-          (:then () (notice-file (output-artefact op component) client)))
+          (:then () (notice-file (realize-artefact (output-artefact op component) op) client)))
         promise-ish)))
 
 (defclass artefact-input-operation (operation)
@@ -355,9 +359,21 @@
 
 (defgeneric select-compiler (operation policy))
 
+(defmethod dependencies append ((op compiler-operation) (component artefact-component))
+  (list (depend 'artefact-effect (artefact component))))
+
 (defmethod make-operation ((operation compiler-operation) (policy policy))
   (setf (compiler operation) (select-compiler operation policy))
   operation)
+
+(defmethod realize-artefact ((artefact artefact) (operation compiler-operation))
+  (if (eq :compiler (registry artefact))
+      (let ((path (format NIL "~(~a/~a/~)~a"
+                          (cache-directory (compiler operation))
+                          (target-platform operation)
+                          (path artefact))))
+        (find-artefact path *server* :registry :cache :if-does-not-exist :create))
+      artefact))
 
 (defclass compiler (versioned-object)
   ((name :initarg :name :initform (support:arg! :name) :reader name)
@@ -379,14 +395,12 @@
 (defgeneric output-file-type (operation component))
 
 (defmethod output-artefact ((op compiler-output-operation) (component artefact-component))
-  (let ((path (format NIL "~(~a/~a/~a/~a/~)~a.~a"
-                      (cache-directory (compiler op))
-                      (target-platform op)
+  (let ((path (format NIL "~(~a/~a/~)~a.~a"
                       (registry (artefact component))
                       (to-string (version component))
                       (path (artefact component))
                       (output-file-type op component))))
-    (find-artefact path *server* :registry :cache :if-does-not-exist :create)))
+    (find-artefact path *server* :registry :compiler :if-does-not-exist :create)))
 
 (defclass compiler-input-operation (artefact-input-operation compiler-operation)
   ())
@@ -394,14 +408,12 @@
 (defgeneric input-file-type (operation component))
 
 (defmethod input-artefact ((op compiler-input-operation) (component artefact-component))
-  (let ((path (format NIL "~(~a/~a/~a/~a/~)~a.~a"
-                      (cache-directory (compiler op))
-                      (target-platform op)
+  (let ((path (format NIL "~(~a/~a/~)~a.~a"
                       (registry (artefact component))
                       (to-string (version component))
                       (path (artefact component))
                       (input-file-type op component))))
-    (find-artefact path *server* :registry :cache :if-does-not-exist :create)))
+    (find-artefact path *server* :registry :compiler :if-does-not-exist :create)))
 
 (defclass artefact-project (project)
   ((registry :accessor registry)))

@@ -16,7 +16,7 @@
                (dot thing temp)
                (uiop:run-program (list "dot"
                                        (format NIL "-T~a" (pathname-type target))
-                                       (format NIL "-o~a" (namestring (truename target)))
+                                       (format NIL "-o~a" (uiop:native-namestring target))
                                        (namestring (truename temp)))
                                  :output T :error-output T))
           (delete-file temp)))

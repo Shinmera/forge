@@ -43,12 +43,10 @@
 
 (defmethod forge:dependencies append ((op lisp-source-operation) (component file))
   (let ((artefact (forge:artefact component)))
-    (list* (forge:depend 'forge:artefact-effect artefact)
-           (loop for dependency in (depends-on component)
-                 for properties = (etypecase dependency
-                                    (forge:artefact dependency)
-                                    (string (forge:find-artefact dependency forge:*server* :registry (forge:registry artefact))))
-                 collect (forge:depend 'load-effect properties)))))
+    (loop for dependency in (depends-on component)
+          collect (etypecase dependency
+                    (forge:artefact (forge:depend 'artefact-effect dependency))
+                    (file (forge:depend 'load-effect dependency))))))
 
 (defclass load-operation (lisp-source-operation)
   ())
@@ -90,7 +88,7 @@
 
 (defmethod forge:perform ((op load-fasl-operation) (component file) client)
   (forge:with-client-eval (client)
-    `(load ,(forge:artefact-pathname (forge:input-artefact op component) client))))
+    `(load ,(forge:artefact-pathname (forge:realize-artefact (forge:input-artefact op component) op) client))))
 
 (defclass load-into-image-operation (forge:operation)
   ())

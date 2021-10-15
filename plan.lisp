@@ -124,7 +124,7 @@
 
 (defmethod print-object ((effect effect) stream)
   (print-unreadable-object (effect stream :type T)
-    (format stream "~s ~s" (type-of effect) (parameters effect))))
+    (format stream "~s" (parameters effect))))
 
 (defmethod add-source ((operation operation) (component component) (effect effect))
   (add-source (type-of operation) component effect))
