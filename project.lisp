@@ -9,6 +9,9 @@
 (support:define-condition* no-such-project (error)
   (name version) ("Could not find a project with name~%  ~a~%and matching version~%  ~a" name (to-string (version condition))))
 
+(support:define-condition* project-source-path-changed (warning)
+  (new old project) ("The blueprint source path for~%  ~a~%would be changed from~%  ~a~%to~%  ~a" project old new))
+
 (defvar *projects* (make-hash-table :test 'equal))
 
 (defclass build-effect (effect)
@@ -122,9 +125,10 @@
          (existing-path (gethash project *projects*)))
     (with-simple-restart (abort "Don't register the new project.")
       (when source-path
-        (when (and existing-path (not (equal existing-path source-path)))
-          (warn 'project-source-path-changed :new source-path :old existing-path))
-        (setf (gethash project *projects*) source-path))
+        (with-simple-restart (abort "Don't change the source path.")
+          (when (and existing-path (not (equal existing-path source-path)))
+            (warn 'project-source-path-changed :project project :new source-path :old existing-path))
+          (setf (gethash project *projects*) source-path)))
       (pushnew project versions)
       (setf (gethash name *projects*) versions))
     project))
@@ -160,7 +164,7 @@
               (,instance (or (find-project ',name :version ,versiong :if-does-not-exist NIL)
                              (make-instance ',type :name ,name :version ,versiong))))
          (reinitialize-instance ,instance ,@initargs)
-         (register-project ,instance ,(or *blueprint-truename* *compile-file-truename* *load-truename*))))))
+         (register-project ,instance ,*blueprint-truename*)))))
 
 (defmethod build (project &rest args)
   (apply #'build (find-project project :if-does-not-exist :error) args))

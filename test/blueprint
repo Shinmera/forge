@@ -1,4 +1,4 @@
-;; -*- mode: lisp; -*-
+;; -*- mode: lisp; slime-buffer-package: org.shirakumo.forge.user -*-
 (forge:define-project (lisp)
   :name "test"
   :version 0

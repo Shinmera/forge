@@ -243,3 +243,8 @@
    #:version-from-string
    #:versioned-object
    #:version))
+
+(defpackage #:org.shirakumo.forge.user
+  (:use #:cl)
+  (:local-nicknames
+   (#:forge #:org.shirakumo.forge)))
