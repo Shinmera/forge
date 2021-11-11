@@ -26,7 +26,9 @@
                    (if (eql type (class-name (class-of existing)))
                        existing
                        (change-class existing type))
-                   (apply #'allocate-instance (find-class type) initargs)))))
+                   (setf existing (apply #'make-instance (find-class type) initargs)))
+               (setf (slot-value existing 'name) (getf initargs :name))
+               existing)))
       ;; First, parse all specs
       (let ((specs (loop for spec in components
                          append (loop for spec in (normalize-component-spec project spec)
@@ -47,7 +49,7 @@
         ;;        redefined though, wonder how to do that nicely.
         (with-cleanup-on-unwind (setf (children project) old-table)
           (loop for spec in specs
-                for piror = NIL then component
+                for prior = NIL then component
                 for component = (gethash (getf (rest spec) :name) children)
                 do (apply #'reinitialize-instance component :prior prior (rest spec))))))))
 
@@ -79,13 +81,15 @@
       (remf args :type)
       (list* type :name name args))))
 
-(defun list-projects ()
-  (let ((projects ()))
-    (loop for versions being the hash-values of *projects*
-          when (typep versions 'list)
-          do (loop for project in versions
-                   do (push project projects)))
-    projects))
+(defun list-projects (&key name)
+  (if name
+      (copy-list (gethash name *projects*))
+      (let ((projects ()))
+        (loop for versions being the hash-values of *projects*
+              when (typep versions 'list)
+              do (loop for project in versions
+                       do (push project projects)))
+        projects)))
 
 (defmethod ensure-version ((version version))
   version)
@@ -140,6 +144,11 @@
         (setf (gethash name *projects*) versions)
         (remhash name *projects*))
     name))
+
+(defmethod delete-project ((all (eql T)))
+  (mapc #'delete-project (loop for project being the hash-keys of *projects*
+                               when (typep project 'project)
+                               collect project)))
 
 (defmacro define-project (modules &body args)
   (let ((module (or (first (mapcar #'load-module modules)) (find-module 'forge)))

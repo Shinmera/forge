@@ -177,7 +177,7 @@
 (defclass versioned-object ()
   ((version :initform *unknown-version* :accessor version)))
 
-(defmethod initialize-instance ((object versioned-object) &key version)
+(defmethod shared-initialize ((object versioned-object) slots &key version)
   (call-next-method)
   (when version
     (setf (version object)
