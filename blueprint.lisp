@@ -139,6 +139,20 @@
     (sb-ext:add-package-local-nickname "FORGE" #.*package* package)
     package))
 
+(defun load-blueprint-file (path)
+  ;; FIXME: use Eclector to catch attempts at introducing symbols into external packages
+  (with-open-file (stream path :direction :input :external-format :utf-8)
+    (loop for form = (read stream NIL '#1=#:eof)
+          until (eq form '#1#)
+          do (etypecase form
+               (cons
+                (handle-blueprint-form (car form) (cdr form)))))))
+
+(defgeneric handle-blueprint-form (operator args))
+
+(defmethod handle-blueprint-form ((operator (eql 'define-project)) args)
+  (funcall (compile NIL `(lambda () ,operator ,@args))))
+
 (defun load-blueprint (path)
   (let* ((path (truename path))
          (temp (tempfile :type "lisp"))
@@ -147,15 +161,14 @@
     ;; don't impact the load and are properly detected as new changes when
     ;; attempting to load the file again.
     (uiop:copy-file path temp)
-    ;; FIXME: Instead of LOAD use something like Eclector to read and then
-    ;;        selectively evaluate forms
     (with-standard-io-syntax
       (let* ((hash (hash-file temp))
              (blueprint-package (make-blueprint-package))
              (*blueprint-truename* path)
              (*package* blueprint-package)
              (*read-eval* NIL))
-        (unwind-protect (load temp :verbose NIL :print NIL :external-format :utf-8)
+        (unwind-protect
+             (load-blueprint-file path)
           (ignore-errors (delete-package blueprint-package))
           (ignore-errors (delete-file temp)))
         ;; Now that we successfully loaded, use the cached file properties.
