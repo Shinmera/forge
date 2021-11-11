@@ -33,7 +33,10 @@
   (let ((component (gethash dep (forge:children (forge:parent file)))))
     (unless component
       (error "Fuck"))
-    (forge:artefact component)))
+    (forge:normalize-dependency-spec file component)))
+
+(defmethod forge:normalize-dependency-spec ((file file) (dependency file))
+  (forge:artefact dependency))
 
 (defclass lisp-compiler-operation (forge:compiler-operation)
   ())
