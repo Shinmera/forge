@@ -424,10 +424,13 @@
 (defclass dependencies-component (component)
   ((depends-on :initform () :accessor depends-on)))
 
-(defmethod shared-initialize :after ((component dependencies-component) slots &key (depends-on NIL dependencies-p))
-  (when dependencies-p
-    (setf (depends-on component)
-          (loop for dependency in depends-on
-                collect (normalize-dependency-spec component dependency)))))
+(defmethod shared-initialize :after ((component dependencies-component) slots &key (depends-on NIL dependencies-p) (prior NIL prior-p))
+  (cond (dependencies-p
+         (setf (depends-on component)
+               (loop for dependency in depends-on
+                     collect (normalize-dependency-spec component dependency))))
+        (prior-p
+         (setf (depends-on component)
+               (list (normalize-dependency-spec component prior))))))
 
 (defgeneric normalize-dependency-spec (component dependency))

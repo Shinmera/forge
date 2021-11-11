@@ -47,8 +47,9 @@
         ;;        redefined though, wonder how to do that nicely.
         (with-cleanup-on-unwind (setf (children project) old-table)
           (loop for spec in specs
+                for piror = NIL then component
                 for component = (gethash (getf (rest spec) :name) children)
-                do (apply #'reinitialize-instance component (rest spec))))))))
+                do (apply #'reinitialize-instance component :prior prior (rest spec))))))))
 
 (defmethod make-step ((operation operation) (project project) (effect build-effect))
   (make-instance 'compound-step
