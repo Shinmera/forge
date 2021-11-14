@@ -154,6 +154,9 @@
                                when (typep project 'project)
                                collect project)))
 
+(defmethod handle-blueprint-form ((operator (eql 'define-project)) args)
+  (funcall (compile NIL `(lambda () (,operator ,@args)))))
+
 (defmacro define-project (modules &body args)
   (let ((module (or (first (mapcar #'load-module modules)) (find-module 'forge)))
         (versiong (gensym "VERSION"))

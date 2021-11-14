@@ -59,8 +59,8 @@
     (setf (find-registry name machine :if-exists if-exists) path)))
 
 (defmethod artefact-pathname ((artefact artefact) (machine machine))
-  (merge-pathnames (path artefact)
-                   (path (find-registry (registry artefact) machine :if-does-not-exist :error))))
+  (let ((registry (find-registry (registry artefact) machine :if-does-not-exist :error)))
+    (merge-pathnames (path artefact) (path registry))))
 
 (defmethod pathname-artefact ((path string) (machine machine) &key (if-does-not-exist :error))
   (let ((longest "") (winner NIL))

@@ -150,9 +150,6 @@
 
 (defgeneric handle-blueprint-form (operator args))
 
-(defmethod handle-blueprint-form ((operator (eql 'define-project)) args)
-  (funcall (compile NIL `(lambda () ,operator ,@args))))
-
 (defun load-blueprint (path)
   (let* ((path (truename path))
          (temp (tempfile :type "lisp"))

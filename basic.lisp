@@ -263,7 +263,9 @@
 
 (defclass linear-executor (executor)
   ((force :initarg :force :initform NIL :accessor force)
-   (client :initarg :client :initform (support:arg! :client) :accessor client)))
+   (client :initarg :client :initform (or (and *server* (first (list-clients *server*)))
+                                          (support:arg! :client))
+           :accessor client)))
 
 (defun compute-step-sequence (plan)
   (let ((visit (make-hash-table :test 'eq))

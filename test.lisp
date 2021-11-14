@@ -4,6 +4,7 @@ This file is a part of forge
 Author: Nicolas Hafner <shinmera@tymoon.eu>
 |#
 
+(ql:quickload :forge-module-lisp)
 (in-package #:org.shirakumo.forge)
 
 (rename-package *package* (package-name *package*) '(forge))
@@ -16,3 +17,4 @@ Author: Nicolas Hafner <shinmera@tymoon.eu>
 (add-blueprint-search-path #p"~/Projects/cl/forge/")
 (load-blueprints)
 (dot (build "test" :executor 'dummy-executor) #p"~/a.png")
+(build "test")

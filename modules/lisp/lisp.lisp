@@ -76,11 +76,12 @@
   "fasl")
 
 (defmethod forge:perform ((op compile-file-operation) (component file) client)
-  (forge:with-client-eval (client)
-    `(compile-file ,(forge:artefact-pathname component client)
-                   :output-file (ensure-directories-exist ,(forge:artefact-pathname (forge:output-artefact op component) client))
-                   :verbose ,(verbose op)
-                   :print ,(verbose op))))
+  (let ((output (forge:artefact-pathname (forge:realize-artefact (forge:output-artefact op component) op) client)))
+    (forge:with-client-eval (client)
+      `(compile-file ,(forge:artefact-pathname component client)
+                     :output-file (ensure-directories-exist ,output)
+                     :verbose ,(verbose op)
+                     :print ,(verbose op)))))
 
 (defclass load-fasl-operation (forge:compiler-input-operation lisp-compiler-operation)
   ())
@@ -143,3 +144,6 @@
 
 (defmethod forge:default-component-type ((project project))
   'file)
+
+(defmethod forge:perform ((op load-operation) (project project) client)
+  T)

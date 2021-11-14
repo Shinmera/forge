@@ -58,7 +58,7 @@
 
 (defmethod initialize-instance :after ((server server) &key)
   (unless (machine server)
-    (setf (slot-value server 'machine) (find-machine :server server :if-does-not-exist :create)))
+    (setf (slot-value server 'machine) (find-machine (machine-instance) server :if-does-not-exist :create)))
   (setf *server* server))
 
 (defgeneric start (server &key))
