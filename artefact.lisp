@@ -97,6 +97,9 @@
 (defgeneric find-artefact (path registry &key if-does-not-exist))
 (defgeneric delete-artefact (designator registry))
 
+(defmethod find-artefact ((artefact artefact) (registry registry) &rest args)
+  (apply #'find-artefact (path artefact) registry args))
+
 (defmethod find-artefact ((path string) (registry registry) &key (if-does-not-exist :error))
   (or (gethash path (artefacts registry))
       (ecase if-does-not-exist
@@ -109,6 +112,9 @@
 
 (defmethod find-artefact (path (machine machine) &key (registry :cache) (if-does-not-exist :error))
   (find-artefact path (find-registry registry machine) :if-does-not-exist if-does-not-exist))
+
+(defmethod find-artefact ((artefact artefact) (machine machine) &rest args)
+  (apply #'find-artefact artefact (find-registry (registry artefact) machine :if-does-not-exist :error) args))
 
 (defmethod delete-artefact ((path string) (registry registry))
   (remhash path (artefacts registry))

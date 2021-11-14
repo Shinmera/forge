@@ -192,17 +192,17 @@
   ((inner-effect :initarg :inner-effect :initform (support:arg! :inner-effect) :reader inner-effect)))
 
 (defgeneric execute (plan/step executor))
-(defgeneric effect-realized-p (effect executor))
-(defgeneric effect-needed-p (effect executor))
+(defgeneric effect-needed-p (effect operation component executor))
+(defgeneric step-needed-p (step executor))
 (defgeneric connect (from to))
 
-(defmethod effect-realized-p ((effect effect) (executor executor))
-  NIL)
+(defmethod effect-needed-p ((effect effect) operation component (executor executor))
+  T)
 
-(defmethod effect-needed-p ((effect effect) (executor executor))
-  (or (not (effect-realized-p effect executor))
-      (loop for predecessor in (predecessors effect)
-            thereis (effect-needed-p effect executor))))
+(defmethod step-needed-p ((step step) (executor executor))
+  (or (effect-needed-p (effect step) (operation step) (component step) executor)
+      (loop for predecessor in (predecessors step)
+            thereis (step-needed-p predecessor executor))))
 
 (defmethod connect ((from step) (to step))
   (pushnew to (successors from))

@@ -281,8 +281,7 @@
       sequence)))
 
 (defmethod execute ((step step) (executor linear-executor))
-  (when (or (force executor)
-            (not (effect-realized-p (effect step) executor)))
+  (when (or (force executor) (step-needed-p step executor))
     (perform (operation step) (component step) (client executor))))
 
 (defmethod execute ((plan plan) (executor linear-executor))
@@ -291,6 +290,9 @@
       (execute step executor))))
 
 (defclass artefact-effect (effect) ())
+
+(defmethod artefact ((effect artefact-effect))
+  (parameters effect))
 
 (defclass artefact-component (component)
   ((artefact :initarg :artefact :reader artefact)))
@@ -350,10 +352,12 @@
   (artefact component))
 
 (defmethod perform ((op ensure-artefact-operation) (component artefact-component) client)
-  (when (artefact-changed-p component client)
-    (with-client-eval (client)
-      (communication:make-file (artefact-pathname component *server*)
-                               (artefact-pathname component client)))))
+  (with-client-eval (client)
+    (communication:make-file (artefact-pathname component *server*)
+                             (artefact-pathname component client))))
+
+(defmethod effect-needed-p ((effect artefact-effect) (operation ensure-artefact-operation) (component artefact-component) (executor executor))
+  (artefact-changed-p component (client executor)))
 
 (defclass compiler-operation (operation)
   ((compiler :initarg :compiler :initform NIL :accessor compiler)
@@ -403,6 +407,10 @@
                       (path (artefact component))
                       (output-file-type op component))))
     (find-artefact path *server* :registry :compiler :if-does-not-exist :create)))
+
+(defmethod effect-needed-p ((effect artefact-effect) (operation compiler-output-operation) (component artefact-component) (executor executor))
+  (or (not (find-artefact (artefact effect) (client executor) :if-does-not-exist NIL))
+      (artefact-changed-p component (client executor))))
 
 (defclass compiler-input-operation (artefact-input-operation compiler-operation)
   ())
