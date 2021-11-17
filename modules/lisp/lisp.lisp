@@ -83,6 +83,9 @@
                      :verbose ,(verbose op)
                      :print ,(verbose op)))))
 
+(defmethod forge:perform :before ((step forge:step) (op compile-file-operation) client)
+  (setf (forge:forced-p step) T))
+
 (defclass load-fasl-operation (forge:compiler-input-operation lisp-compiler-operation)
   ())
 
@@ -146,4 +149,4 @@
   'file)
 
 (defmethod forge:perform ((op load-operation) (project project) client)
-  T)
+  (promise:pend))

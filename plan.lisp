@@ -183,7 +183,8 @@
    (effect :initarg :effect :initform (support:arg! :effect) :reader effect)
    (predecessors :initarg :predecessors :initform () :accessor predecessors)
    (successors :initarg :successors :initform () :accessor successors)
-   (complete-p :initform NIL :accessor complete-p)))
+   (complete-p :initform NIL :accessor complete-p)
+   (forced-p :initform NIL :accessor forced-p)))
 
 (define-print-object-method* step
   "~s ~s" (type-of (operation step)) (type-of (component step)))
@@ -196,13 +197,20 @@
 (defgeneric step-needed-p (step executor))
 (defgeneric connect (from to))
 
-(defmethod effect-needed-p ((effect effect) operation component (executor executor))
+(defmethod effect-needed-p ((effect effect) operation component client)
   T)
 
 (defmethod step-needed-p ((step step) (executor executor))
-  (or (effect-needed-p (effect step) (operation step) (component step) executor)
-      (loop for predecessor in (predecessors step)
-            thereis (step-needed-p predecessor executor))))
+  (or (forced-p step)
+      (effect-needed-p (effect step) (operation step) (component step) executor)))
+
+(defmethod perform ((step step) (operation operation) (client client))
+  (let ((promise (perform operation (component step) client)))
+    (when (forced-p step)
+      (loop for successor in (successors step)
+            do (setf (forced-p successor) T)))
+    (promise:-> promise
+      (:then () (setf (complete-p step) T)))))
 
 (defmethod connect ((from step) (to step))
   (pushnew to (successors from))
@@ -216,6 +224,5 @@
 ;; FIXME: alternatively: how to determine default compiler to use?
 ;; FIXME: check compiler availability before plan execution
 ;; FIXME: ensure 'same-system deps' are assigned to same client or same machine.
-;; FIXME: actually cache stuff
 ;; FIXME: getting artefacts from one client to another
 ;; FIXME: way of declaring "latest version" of known set

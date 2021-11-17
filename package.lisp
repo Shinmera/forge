@@ -198,11 +198,12 @@
    #:predecessors
    #:successors
    #:complete-p
+   #:forced-p
    #:compound-step
    #:inner-effect
    #:execute
-   #:effect-realized-p
    #:effect-needed-p
+   #:step-needed-p
    #:connect)
   ;; project.lisp
   (:export

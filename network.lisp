@@ -166,8 +166,10 @@
 (defmethod artefact-changed-p ((artefact artefact) (server server))
   ;; Better would be checking the hash to track changes on sub-second granularity
   ;; or changes that mess with the file timestamp.
-  (let ((path (artefact-pathname artefact (machine server))))
-    (< (mtime artefact) (file-write-date path))))
+  (let* ((path (artefact-pathname artefact (machine server)))
+         (date (file-write-date path)))
+    (prog1 (< (mtime artefact) date)
+      (setf (mtime artefact) date))))
 
 (defmethod artefact-changed-p (path (server server))
   (artefact-changed-p (pathname-artefact path server) server))
@@ -355,11 +357,6 @@
   (v:info :forge.network "Closing connection to ~a" client)
   (remhash (name client) (clients (server client)))
   (close (connection client) :abort abort))
-
-(defmethod artefact-changed-p ((artefact artefact) (client client))
-  (let ((existing (find-artefact (path artefact) (find-registry (registry artefact) client))))
-    (or (null existing)
-        (< (mtime existing) (mtime artefact)))))
 
 ;; KLUDGE: patch decoding of artefacts here to ensure we get actual artefact instances instead of
 ;;         just references to them through the communications protocol.

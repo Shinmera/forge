@@ -280,9 +280,12 @@
             do (visit step))
       sequence)))
 
+(defmethod effect-needed-p ((effect effect) (operation operation) (component component) (executor linear-executor))
+  (effect-needed-p effect operation component (client executor)))
+
 (defmethod execute ((step step) (executor linear-executor))
   (when (or (force executor) (step-needed-p step executor))
-    (perform (operation step) (component step) (client executor))))
+    (perform step (operation step) (client executor))))
 
 (defmethod execute ((plan plan) (executor linear-executor))
   (promise:do-promised (step (compute-step-sequence plan))
@@ -325,11 +328,8 @@
   artefact)
 
 (defmethod perform :around ((op artefact-output-operation) component client)
-  (let ((promise-ish (call-next-method)))
-    (if (typep promise-ish 'promise:promise)
-        (promise:-> promise-ish
-          (:then () (notice-file (realize-artefact (output-artefact op component) op) client)))
-        promise-ish)))
+  (promise:-> (call-next-method)
+    (:then () (notice-file (realize-artefact (output-artefact op component) op) client))))
 
 (defclass artefact-input-operation (operation)
   ())
@@ -356,8 +356,9 @@
     (communication:make-file (artefact-pathname component *server*)
                              (artefact-pathname component client))))
 
-(defmethod effect-needed-p ((effect artefact-effect) (operation ensure-artefact-operation) (component artefact-component) (executor executor))
-  (artefact-changed-p component (client executor)))
+(defmethod effect-needed-p ((effect artefact-effect) (operation ensure-artefact-operation) (component artefact-component) (client client))
+  (and (not (eq (machine client) (machine *server*)))
+       (artefact-changed-p component *server*)))
 
 (defclass compiler-operation (operation)
   ((compiler :initarg :compiler :initform NIL :accessor compiler)
@@ -408,9 +409,10 @@
                       (output-file-type op component))))
     (find-artefact path *server* :registry :compiler :if-does-not-exist :create)))
 
-(defmethod effect-needed-p ((effect artefact-effect) (operation compiler-output-operation) (component artefact-component) (executor executor))
-  (or (not (find-artefact (artefact effect) (client executor) :if-does-not-exist NIL))
-      (artefact-changed-p component (client executor))))
+(defmethod effect-needed-p ((effect artefact-effect) (op compiler-output-operation) (component artefact-component) (client client))
+  (or (not (find-artefact (artefact effect) client :if-does-not-exist NIL))
+      (artefact-changed-p component *server*)
+      (artefact-supersedes-p (artefact component) (realize-artefact (output-artefact op component) op))))
 
 (defclass compiler-input-operation (artefact-input-operation compiler-operation)
   ())

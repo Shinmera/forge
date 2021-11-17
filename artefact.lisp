@@ -33,6 +33,7 @@
 (defgeneric artefact-pathname (artefact machine))
 (defgeneric pathname-artefact (pathname machine &key if-does-not-exist))
 (defgeneric notice-file (designator machine))
+(defgeneric artefact-supersedes-p (newer? older?))
 
 (defmethod find-registry (name (machine machine) &key (if-does-not-exist :error))
   (or (gethash name (registries machine))
@@ -137,3 +138,6 @@
   (setf (hash artefact) hash)
   (setf (size artefact) size)
   (setf (mtime artefact) (get-universal-time)))
+
+(defmethod artefact-supersedes-p ((newer? artefact) (older? artefact))
+  (< (mtime older?) (mtime newer?)))
