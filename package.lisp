@@ -116,6 +116,7 @@
    #:load-module
    #:find-module
    #:register-module
+   #:on-client-connect
    #:list-modules
    #:define-module)
   ;; network.lisp

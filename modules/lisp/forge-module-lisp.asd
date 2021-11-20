@@ -16,4 +16,5 @@
   :serial T
   :components ((:file "package")
                (:file "lisp"))
-  :depends-on (:forge))
+  :depends-on (:forge
+               :stealth-mixin))

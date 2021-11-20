@@ -51,6 +51,7 @@
 (defgeneric load-module (designator &key if-exists if-does-not-exist))
 (defgeneric find-module (designator &key if-does-not-exist))
 (defgeneric register-module (module))
+(defgeneric on-client-connect (module client))
 
 (defun list-modules ()
   (loop for module being the hash-values of *modules*
@@ -87,6 +88,12 @@
 
 (defmethod register-module ((module module))
   (setf (gethash (string-downcase (name module)) *modules*) module))
+
+(defmethod on-client-connect ((module module) (client client)))
+
+(defmethod on-client-connect ((all (eql T)) (client client))
+  (dolist (module (list-modules))
+    (on-client-connect module client)))
 
 (defmacro define-module (module superclasses slots &rest initargs)
   (let ((instance (gensym "INSTANCE")))

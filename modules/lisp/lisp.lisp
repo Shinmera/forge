@@ -6,11 +6,26 @@
 
 (in-package #:org.shirakumo.forge.modules.lisp)
 
+(stealth-mixin:define-stealth-mixin client () forge:client
+  ((load-tracking :initform (make-hash-table :test 'equal) :accessor load-tracking)))
+
 (forge:define-module lisp ()
   ())
 
 (defmethod forge:default-project-type ((module lisp))
   'project)
+
+(defmethod forge:on-client-connect ((module lisp) (client forge:client))
+  (promise:then
+   (forge:with-client-eval (client)
+     `(let ((intern (intern "ORG.SHIRAKUMO.FORGE.MODULES.LISP.LOAD-TRACKING" "CL-USER")))
+        (if (boundp intern)
+            (symbol-value intern)
+            (set intern (make-hash-table :test 'equal)))))
+   (lambda (cached)
+     (clrhash (load-tracking client))
+     (loop for k being the hash-keys of cached
+           do (setf (gethash k (load-tracking client)) T)))))
 
 (defun implementation-version-string ()
   (load-time-value
@@ -38,6 +53,10 @@
 (defmethod forge:normalize-dependency-spec ((file file) (dependency file))
   (forge:artefact dependency))
 
+(defmethod forge:effect-needed-p ((effect load-effect) (operation operation) (component file) (client forge:client))
+  (let ((time (gethash (forge:artefact-pathname component client) (load-tracking client))))
+    (or (null time) (< time (mtime (forge:artefact component))))))
+
 (defclass lisp-compiler-operation (forge:compiler-operation)
   ())
 
@@ -60,10 +79,15 @@
   (forge:ensure-effect op component 'load-effect (forge:artefact component)))
 
 (defmethod forge:perform ((op load-operation) (component file) client)
-  (forge:with-client-eval (client)
-    `(load ,(forge:artefact-pathname component client)
-           :verbose ,(verbose op)
-           :print ,(verbose op))))
+  (let ((path (forge:artefact-pathname component client))
+        (time (forge:mtime (forge:artefact component))))
+    (promise:then (forge:with-client-eval (client)
+                    `(progn (load ,path
+                                  :verbose ,(verbose op)
+                                  :print ,(verbose op))
+                            (setf (gethash ,path 'cl-user::org.shirakumo.forge.modules.lisp.load-tracking) ,time)))
+                  (lambda (_)
+                    (setf (gethash path (load-tracking client)) time)))))
 
 (defclass compile-file-operation (forge:compiler-output-operation lisp-source-operation)
   ())
@@ -96,8 +120,13 @@
   "fasl")
 
 (defmethod forge:perform ((op load-fasl-operation) (component file) client)
-  (forge:with-client-eval (client)
-    `(load ,(forge:artefact-pathname (forge:realize-artefact (forge:input-artefact op component) op) client))))
+  (let ((path (forge:artefact-pathname component client))
+        (time (forge:mtime (forge:artefact component))))
+    (promise:then (forge:with-client-eval (client)
+                    `(progn (load ,(forge:artefact-pathname (forge:realize-artefact (forge:input-artefact op component) op) client))
+                            (setf (gethash ,path 'cl-user::org.shirakumo.forge.modules.lisp.load-tracking) ,time)))
+                  (lambda (_)
+                    (setf (gethash path (load-tracking client)) time))))
 
 (defclass load-into-image-operation (forge:operation)
   ())

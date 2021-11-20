@@ -196,7 +196,9 @@
            (communication:reply! connection message 'communication:ok))
        (let ((client (make-instance 'client :connection connection :server server :name name :machine machine)))
          (v:info :forge.network "Established new client connection ~a" client)
-         (setf (gethash name (clients server)) client))))
+         (setf (gethash name (clients server)) client)
+         (on-client-connect T client)
+         client)))
     (T
      (error 'unsupported-protocol-version :version (communication:version message)))))
 
