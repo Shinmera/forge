@@ -329,7 +329,7 @@
 
 (defmethod perform :around ((op artefact-output-operation) component client)
   (promise:-> (call-next-method)
-    (:then () (notice-file (realize-artefact (output-artefact op component) op) client))))
+    (:then () (register-artefact (output-artefact op component) client))))
 
 (defclass artefact-input-operation (operation)
   ())
@@ -361,37 +361,22 @@
        (artefact-changed-p component *server*)))
 
 (defclass compiler-operation (operation)
-  ((compiler :initarg :compiler :initform NIL :accessor compiler)
-   (target-platform :initarg :target-platform :initform :native :accessor target-platform)))
-
-(defgeneric select-compiler (operation policy))
+  ((compiler :initarg :compiler :initform NIL :accessor compiler)))
 
 (defmethod dependencies append ((op compiler-operation) (component artefact-component))
   (list (depend 'artefact-effect (artefact component))))
 
 (defmethod make-operation ((operation compiler-operation) (policy policy))
-  (setf (compiler operation) (select-compiler operation policy))
+  (setf (compiler operation) (compiler policy))
   operation)
 
 (defmethod realize-artefact ((artefact artefact) (operation compiler-operation))
   (if (eq :compiler (registry artefact))
-      (let ((path (format NIL "~(~a/~a/~)~a"
+      (let ((path (format NIL "~(~a/~)~a"
                           (cache-directory (compiler operation))
-                          (target-platform operation)
                           (path artefact))))
         (find-artefact path *server* :registry :cache :if-does-not-exist :create))
       artefact))
-
-(defclass compiler (versioned-object)
-  ((name :initarg :name :initform (support:arg! :name) :reader name)
-   (cache-directory :initarg :cache-directory :initform NIL :accessor cache-directory)))
-
-(defmethod initialize-instance :after ((compiler compiler) &key)
-  (unless (cache-directory compiler)
-    (setf (cache-directory compiler) (remove-if #'unsafe-path-char-p
-                                                (format NIL "~(~a-~a~)"
-                                                        (name compiler)
-                                                        (to-string (version compiler)))))))
 
 (defclass compiler-output-operation (artefact-output-operation compiler-operation)
   ())
@@ -411,8 +396,7 @@
 
 (defmethod effect-needed-p ((effect artefact-effect) (op compiler-output-operation) (component artefact-component) (client client))
   (or (not (find-artefact (artefact effect) client :if-does-not-exist NIL))
-      (artefact-changed-p component *server*)
-      (artefact-supersedes-p (artefact component) (realize-artefact (output-artefact op component) op))))
+      (artefact-supersedes-p (artefact component) (output-artefact op component))))
 
 (defclass compiler-input-operation (artefact-input-operation compiler-operation)
   ())

@@ -67,9 +67,6 @@
 (defgeneric find-machine (name server &key if-does-not-exist))
 (defgeneric (setf find-machine) (machine name server &key if-exists))
 (defgeneric delete-machine (name server))
-;; This function only works with the server object as we have to use the property
-;; of actual real files on the file system to determine changes, which only works
-;; on the local instance of the server.
 (defgeneric artefact-changed-p (artefact server))
 (defgeneric message-loop (server))
 (defgeneric promise-loop (server))
@@ -164,12 +161,11 @@
   name)
 
 (defmethod artefact-changed-p ((artefact artefact) (server server))
-  ;; Better would be checking the hash to track changes on sub-second granularity
-  ;; or changes that mess with the file timestamp.
-  (let* ((path (artefact-pathname artefact (machine server)))
-         (date (file-write-date path)))
-    (prog1 (< (mtime artefact) date)
-      (setf (mtime artefact) date))))
+  (let ((path (artefact-pathname artefact (machine server))))
+    (or (< (mtime artefact) (file-write-date path))
+        (with-open-file (stream path :element-type '(unsigned-byte 8))
+          (or (/= (size artefact) (file-length path))
+              (not (equal (hash artefact) (hash-file stream))))))))
 
 (defmethod artefact-changed-p (path (server server))
   (artefact-changed-p (pathname-artefact path server) server))

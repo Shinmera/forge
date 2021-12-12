@@ -144,14 +144,26 @@
   (and (eq (type-of a) (type-of b))
        (equal (parameters a) (parameters b))))
 
+(defclass compiler (versioned-object)
+  ((name :initarg :name :initform (support:arg! :name) :reader name)
+   (cache-directory :initarg :cache-directory :initform NIL :accessor cache-directory)))
+
+(defmethod initialize-instance :after ((compiler compiler) &key)
+  (unless (cache-directory compiler)
+    (setf (cache-directory compiler) (remove-if #'unsafe-path-char-p
+                                                (format NIL "~(~a-~a~)"
+                                                        (name compiler)
+                                                        (to-string (version compiler)))))))
+
 (defclass policy ()
-  ())
+  ((compiler :initarg :compiler :initform NIL :accessor compiler)))
 
 (defgeneric in-order-to (effect policy))
 (defgeneric select-source (policy effect sources))
 (defgeneric select-effect-set (policy sets))
 (defgeneric compute-plan (effect policy))
 (defgeneric make-operation (operation policy))
+(defgeneric select-compiler (effect policy))
 
 (defmethod in-order-to ((effect effect) (policy policy))
   (select-source policy effect (sources effect)))
@@ -161,6 +173,10 @@
 
 (defmethod make-operation ((operation operation) (policy policy))
   operation)
+
+(defmethod compute-plan :before ((effect effect) (policy policy))
+  (unless (compiler policy)
+    (setf (compiler policy) (select-compiler effect policy))))
 
 (defclass executor ()
   ())

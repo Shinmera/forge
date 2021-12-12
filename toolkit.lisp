@@ -112,7 +112,11 @@
         do (unless (probe-file path) (return path))))
 
 (defun hash-file (file)
-  (ironclad:digest-file :sha256 file))
+  (etypecase file
+    ((or string pathname)
+     (ironclad:digest-file :sha256 file))
+    (stream
+     (ironclad:digest-stream :sha256 file))))
 
 (defun removef (plist &rest fields)
   (loop for (k v) on plist by #'cddr

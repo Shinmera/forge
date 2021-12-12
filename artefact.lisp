@@ -23,17 +23,12 @@
   ((name :initarg :name :initform (support:arg! :name) :reader name)
    (registries :initform (make-hash-table :test 'equal) :reader registries)))
 
-(defmethod initialize-instance :after ((machine machine) &key)
-  (setf (find-registry :compiler machine) (make-instance 'registry :name :compiler :path NIL)))
-
 (define-print-object-method* machine "~s" name)
 
 (defgeneric find-registry (name machine &key if-does-not-exist))
 (defgeneric (setf find-registry) (registry name machine &key if-exists))
 (defgeneric artefact-pathname (artefact machine))
 (defgeneric pathname-artefact (pathname machine &key if-does-not-exist))
-(defgeneric notice-file (designator machine))
-(defgeneric artefact-supersedes-p (newer? older?))
 
 (defmethod find-registry (name (machine machine) &key (if-does-not-exist :error))
   (or (gethash name (registries machine))
@@ -82,12 +77,6 @@
 (defmethod pathname-artefact ((path pathname) (machine machine) &key (if-does-not-exist :error))
   (pathname-artefact (namestring path) machine :if-does-not-exist if-does-not-exist))
 
-(defmethod notice-file ((path pathname) machine)
-  (touch (pathname-artefact path machine :if-does-not-exist :create)))
-
-(defmethod notice-file ((artefact artefact) machine)
-  (touch (find-artefact (path artefact) machine :registry (registry artefact) :if-does-not-exist :create)))
-
 (defclass registry ()
   ((name :initarg :name :initform (support:arg! :name) :reader name)
    (artefacts :initform (make-hash-table :test 'equal) :reader artefacts)
@@ -97,6 +86,7 @@
 
 (defgeneric find-artefact (path registry &key if-does-not-exist))
 (defgeneric delete-artefact (designator registry))
+(defgeneric register-artefact (artefact registry))
 
 (defmethod find-artefact ((artefact artefact) (registry registry) &rest args)
   (apply #'find-artefact (path artefact) registry args))
@@ -125,19 +115,31 @@
   (remhash (path artefact) (artefacts registry))
   artefact)
 
+(defmethod register-artefact ((artefact artefact) (registry registry))
+  (unless (equal (name registry) (registry artefact))
+    (error "Cannot register artefact on registry it does not belong to!"))
+  (let ((existing (gethash (path artefact) (artefacts registry))))
+    (when (and existing (not (eq artefact existing)))
+      (cerror "Replace the artefact." "Cannot put~%  ~a~%into~%  ~a~%as it already has~%  ~a"
+              artefact registry existing))
+    (setf (gethash (path artefact) (artefacts registry)) artefact)))
+
 (defclass artefact ()
   ((path :initarg :path :initform (support:arg! :path) :reader path)
    (registry :initarg :registry :initform (support:arg! :registry) :reader registry)
    (size :initarg :size :initform NIL :accessor size)
    (hash :initarg :hash :initform NIL :accessor hash)
-   (mtime :initarg :mtime :initform (get-universal-time) :accessor mtime)))
+   (mtime :initarg :mtime :initform NIL :accessor mtime)))
 
 (define-print-object-method* artefact "~s ~s" (registry artefact) path)
 
-(defmethod touch ((artefact artefact) &key hash size)
-  (setf (hash artefact) hash)
-  (setf (size artefact) size)
-  (setf (mtime artefact) (get-universal-time)))
+(defmethod probe ((artefact artefact))
+  (with-open-file (stream (artefact-pathname artefact *server*) :element-type '(unsigned-byte 8))
+    (setf (size artefact) (file-length stream))
+    (setf (mtime artefact) (file-write-date stream))
+    (setf (hash artefact) (hash-file stream)))
+  artefact)
 
 (defmethod artefact-supersedes-p ((newer? artefact) (older? artefact))
-  (< (mtime older?) (mtime newer?)))
+  (or (artefact-changed-p newer? *server*)
+      (< (mtime newer?) (mtime older?))))

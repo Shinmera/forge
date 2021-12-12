@@ -22,7 +22,6 @@
    #:find-registry
    #:artefact-pathname
    #:pathname-artefact
-   #:notice-file
    #:registry
    #:name
    #:path
@@ -34,7 +33,7 @@
    #:size
    #:hash
    #:mtime
-   #:touch)
+   #:probe)
   ;; basic.lisp
   (:export
    #:basic-database
@@ -54,9 +53,6 @@
    #:input-artefact
    #:ensure-artefact-operation
    #:compiler-operation
-   #:compiler
-   #:target-platform
-   #:select-compiler
    #:compiler
    #:name
    #:cache-directory
@@ -180,13 +176,18 @@
    #:add-source
    #:normalize-parameters
    #:variant-p
+   #:compiler
+   #:name
+   #:cache-directory
    #:policy
+   #:compiler
    #:in-order-to
    #:select-source
    #:select-effect-set
    #:compute-plan
    #:retry
    #:make-operation
+   #:select-compiler
    #:executor
    #:plan
    #:first-steps
