@@ -7,9 +7,22 @@ This is still in flux
 ### Configuration
 
 ## Internals
+This section discusses the internals of the Forge system. You should read this if you plan to contribute to Forge itself or would like to extend it in some way, be that by supporting a new language target, or adding other support functionality.
+
 ### Concepts
+Forge employs a strict separation model in two ways:
+
+1. The planning phase is required to be entirely deterministic and **must not** touch the file system or other variable parts. A fully generated plan can then be executed via a number of different execution strategies, at which point steps in the plan may be elided to avoid unnecessary work, and may be distributed across multiple clients that perform the work.
+2. Execution should not happen on the same process as planning and management. This ensures that side-effects from plan execution are isolated from the planner, and also that needed libraries for planning and such are not needed on an executing client.
+
+Being separated as such, we will go over the concepts in separation, first looking at planning, then at execution, and finally at the distribution and file system aspects.
+
 #### Planning
+
+
 #### Execution
+
+
 #### Distribution
 Forge contains an abstract representation of a network of ``peer``s, one of which being a ``server`` that holds all the project data, and all others being ``client``s. Each ``peer`` runs on a ``machine``, which may or may not be the same as the ``server``.
 
