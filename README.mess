@@ -15,13 +15,25 @@ Forge employs a strict separation model in two ways:
 1. The planning phase is required to be entirely deterministic and **must not** touch the file system or other variable parts. A fully generated plan can then be executed via a number of different execution strategies, at which point steps in the plan may be elided to avoid unnecessary work, and may be distributed across multiple clients that perform the work.
 2. Execution should not happen on the same process as planning and management. This ensures that side-effects from plan execution are isolated from the planner, and also that needed libraries for planning and such are not needed on an executing client.
 
-Being separated as such, we will go over the concepts in separation, first looking at planning, then at execution, and finally at the distribution and file system aspects.
+Being separated as such, we will go over the concepts in separation as well, first looking at planning, then at execution, and finally at the distribution and file system aspects.
 
 #### Planning
+Plans are oriented around ``effect``s, which are an abstract description of some kind of change that we would like to achieve. Effects are caused by ``perform``ing some kind of ``operation`` on some kind of ``compononent``. Both operations, components, and effects are entirely abstract in this, though they will often be used to represent something like: performing compilation on file A produces a fragment B, with the B output being the effect, file A being the component, and compilation being the operation.
 
+An effect may be produced by different combinations of operations and components. To resolve this ambiguity, computing a plan takes a ``policy`` object. The policy has effects both on the selection of which effective operation and component are used to achieve any effect, and they also influence the exact parameters of each operation object, allowing the influence of things such as compilation parameters.
+
+Any operation and component pair will have a list of ``dependencies``, each of which should be a ``dependency`` object that describes applicable effects that, if achieved, satisfy the dependency. In order to perform the operation on the component, all hard dependencies must first be resolved. A dependency may also be weak, in which case the dependent effect must only be achieved first if it is already included elsewhere as a hard dependency.
+
+In order to resolve a dependency, a database is first searched for effects that match the dependency's ``effect-type``, ``parameters``, and ``version`` constraints. Possible effects are then gathered into sets of effects across the whole plan. Once all possible sets are computed, a single effects set is selected via the policy using ``select-effect-set``.
+
+Once the graph of effects has been computed, it is transformed into a graph of ``steps`` to form a ``plan``. Each ``step`` retains the exact effect, operation, and component selected by the planner, and holds a list of ``predecessors`` and ``successors`` steps.
 
 #### Execution
+A completed ``plan`` can then be ``execute``d in combination with an ``executor``. The executor defines how steps are distributed to clients, allowing both for entirely linear execution on a single client, as well as parallelised or distributed execution (more on that below).
 
+The executor may first transform the step graph and eliminate unneeded steps to avoid unnecessary work. Afterwards, the exact operation of the executor is not strictly defined aside from the requirement that a step may only be executed once all its predecessors have been executed.
+
+One important detail is that ``execute`` and ``perform`` both must return a ``promise`` object, and the executor must ensure that ``perform`` is not called eagerly or synchronously, as the communication with clients requires that the execution of a step happen asynchronously.
 
 #### Distribution
 Forge contains an abstract representation of a network of ``peer``s, one of which being a ``server`` that holds all the project data, and all others being ``client``s. Each ``peer`` runs on a ``machine``, which may or may not be the same as the ``server``.

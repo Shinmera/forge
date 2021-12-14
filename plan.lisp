@@ -236,9 +236,6 @@
   (setf (successors from) (delete to (successors from)))
   (setf (predecessors to) (delete from (predecessors to))))
 
-;; FIXME: some way to register what toolsets are available on a client
-;; FIXME: alternatively: how to determine default compiler to use?
-;; FIXME: check compiler availability before plan execution
 ;; FIXME: ensure 'same-system deps' are assigned to same client or same machine.
 ;; FIXME: getting artefacts from one client to another
 ;; FIXME: way of declaring "latest version" of known set
