@@ -5,7 +5,20 @@ This is still in flux
 This section describes an overview on how to use Forge to perform builds and set your project up to build with it. Do note however that since Forge is a generic build system, you will also need to refer to documentation for the specific kind of project you're building to get the full picture.
 
 ### Building
-; TODO
+If you have ``forge`` in your path, performing the default build can be done simply by invoking ``forge`` from a directory that contains a ``blueprint`` file. It will automatically discover the blueprint and run the default build task.
+
+You can discover more about forge's command line arguments by running ``forge help``, which among other information will show you all the possible subcommands, including each command's arguments. Nevertheless, here's some other common uses:
+
+- ``forge -c ~/path/to/project/``
+  Invoke forge from a different directory than the blueprint file.
+- ``forge -t project``
+  Execute the default effect for ``project``, discovering the project's location automatically.
+- ``forge effect parameter...``
+  Execute a plan to reach the described effect.
+- ``forge --force``
+  Force the plan execution to disregard caching.
+
+By default Forge will try to discover a running server and use that as build host if it can be found. If not, it will act as server and spin up a local client to perform the build. Please see the configuration section on how to change this behaviour.  
 
 ### Writing Blueprints
 In order to write project descriptions, you have to create a file called ``blueprint`` and place it somewhere that Forge can find it. A blueprint file can define a number of projects at once, and can potentially be located anywhere in relation to other source files or components necessary for the build.
