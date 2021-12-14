@@ -2,9 +2,87 @@
 This is still in flux
 
 ## User Manual
+This section describes an overview on how to use Forge to perform builds and set your project up to build with it. Do note however that since Forge is a generic build system, you will also need to refer to documentation for the specific kind of project you're building to get the full picture.
+
 ### Building
+; TODO
+
 ### Writing Blueprints
+In order to write project descriptions, you have to create a file called ``blueprint`` and place it somewhere that Forge can find it. A blueprint file can define a number of projects at once, and can potentially be located anywhere in relation to other source files or components necessary for the build.
+
+What exactly the blueprint file should contain will depend on the type of projects you are defining, but generally each project definition will look something like this:
+
+::
+(forge:define-project (project-type)
+  :name "project-name"
+  :version 0
+  :components ("some-file.x" "*.thing"))
+::
+
+A more rigorous specification of the grammar is as follows:
+
+::
+definition   ::= (forge:define-project (module+) karg*)
+karg         ::= name
+               | version
+               | components
+               | project-type-specific-argument
+name         ::= :name string
+version      ::= :version version-designator
+components   ::= :components (component-specification*)
+module       --- A symbol naming a module that needs to be loaded to parse this project
+                 definition. The first module specified also determines the type of project
+                 that is defined.
+project-type-specific-argument
+             --- An argument specific to the project type used. However, each argument still
+                 follows the key value format.
+::
+
+Note that most of the definition will be specific to the type of project you're defining, so please refer to that specific module's documentation on how exactly to write a project definition.
+
+#### Version Designators
+Forge supports a number of different version specification schemes:
+
+- **Hash**
+  A simple string that designates a hash of a version. If you use a hash, Forge will not be able to determine whether a version is newer or older than another.
+- **Integer**
+  A single, increasing positive integer version. There's no constraints on the range of the integer.
+- **Separated**
+  A list of integer versions, in descending order of importance. Meaning a version of ``(1 2 3)`` is newer than ``(1 3 2)``.
+- **Compound**
+  A combination of multiple of the previous schemes, again with the earlier scheme taking precedence for the ordering.
+
+Each of these versions can also be parsed from a string if you prefer to specify them that way:
+
+- ``"1"`` - Integer
+- ``"1.2"`` - Separated
+- ``"1.2-a"`` - Compound (Separated + Hash)
+- ``"1.2-32"`` - Compound (Separated + Integer)
+- ``"a"`` - Hash
+
+Additional modules may extend the types of versions supported.
+
+#### Component Specifications
+Each component can be specified as either a singular pattern for files to match, or as a list of the following structure:
+
+::
+component ::= (name karg*)
+karg      ::= type
+            | component-type-specific-argument
+type      ::= :type component-type-name
+name      --- A string naming the component. Must be unique within the project.
+component-type-specific-argument
+          --- An argument specific to the component type used. However, each argument still
+              follows the key value format.
+component-type-name
+          --- A symbol naming the type of component to construct. If not specified, a default
+              type will be chosen based on the project type.
+::
+
+Again, most of the arguments permissible will be specific to the type of component used. Please refer to the appropriate documentation for further instructions.
+
 ### Configuration
+; TODO
 
 ## Internals
 This section discusses the internals of the Forge system. You should read this if you plan to contribute to Forge itself or would like to extend it in some way, be that by supporting a new language target, or adding other support functionality.
