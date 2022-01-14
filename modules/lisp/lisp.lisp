@@ -53,9 +53,9 @@
 (defmethod forge:normalize-dependency-spec ((file file) (dependency file))
   (forge:artefact dependency))
 
-(defmethod forge:effect-needed-p ((effect load-effect) (operation operation) (component file) (client forge:client))
+(defmethod forge:effect-needed-p ((effect load-effect) (operation forge:operation) (component file) (client forge:client))
   (let ((time (gethash (forge:artefact-pathname component client) (load-tracking client))))
-    (or (null time) (< time (mtime (forge:artefact component))))))
+    (or (null time) (< time (forge:mtime (forge:artefact component))))))
 
 (defclass lisp-compiler-operation (forge:compiler-operation)
   ())
@@ -126,7 +126,7 @@
                     `(progn (load ,(forge:artefact-pathname (forge:realize-artefact (forge:input-artefact op component) op) client))
                             (setf (gethash ,path 'cl-user::org.shirakumo.forge.modules.lisp.load-tracking) ,time)))
                   (lambda (_)
-                    (setf (gethash path (load-tracking client)) time))))
+                    (setf (gethash path (load-tracking client)) time)))))
 
 (defclass load-into-image-operation (forge:operation)
   ())
