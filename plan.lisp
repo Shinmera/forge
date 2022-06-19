@@ -178,9 +178,6 @@
   (unless (compiler policy)
     (setf (compiler policy) (select-compiler effect policy))))
 
-(defclass executor ()
-  ())
-
 (defclass plan ()
   ((first-steps :initarg :first-steps :initform #() :reader first-steps)
    (final-steps :initarg :final-steps :initform #() :reader final-steps)))
@@ -198,9 +195,7 @@
    (component :initarg :component :initform (support:arg! :compoenent) :reader component)
    (effect :initarg :effect :initform (support:arg! :effect) :reader effect)
    (predecessors :initarg :predecessors :initform () :accessor predecessors)
-   (successors :initarg :successors :initform () :accessor successors)
-   (complete-p :initform NIL :accessor complete-p)
-   (forced-p :initform NIL :accessor forced-p)))
+   (successors :initarg :successors :initform () :accessor successors)))
 
 (define-print-object-method* step
   "~s ~s" (type-of (operation step)) (type-of (component step)))
@@ -208,25 +203,7 @@
 (defclass compound-step (step)
   ((inner-effect :initarg :inner-effect :initform (support:arg! :inner-effect) :reader inner-effect)))
 
-(defgeneric execute (plan/step executor))
-(defgeneric effect-needed-p (effect operation component executor))
-(defgeneric step-needed-p (step executor))
 (defgeneric connect (from to))
-
-(defmethod effect-needed-p ((effect effect) operation component client)
-  T)
-
-(defmethod step-needed-p ((step step) (executor executor))
-  (or (forced-p step)
-      (effect-needed-p (effect step) (operation step) (component step) executor)))
-
-(defmethod perform ((step step) (operation operation) (client client))
-  (let ((promise (perform operation (component step) client)))
-    (when (forced-p step)
-      (loop for successor in (successors step)
-            do (setf (forced-p successor) T)))
-    (promise:-> promise
-      (:then () (setf (complete-p step) T)))))
 
 (defmethod connect ((from step) (to step))
   (pushnew to (successors from))
@@ -239,3 +216,4 @@
 ;; FIXME: ensure 'same-system deps' are assigned to same client or same machine.
 ;; FIXME: getting artefacts from one client to another
 ;; FIXME: way of declaring "latest version" of known set
+;;;       WORKAROUND: always pick latest version if multiple possible.
