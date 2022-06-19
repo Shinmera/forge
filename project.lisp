@@ -176,7 +176,7 @@
   (let* ((effect (find-effect *database* effect-type (name project) (version project) T))
          (plan (compute-plan effect (ensure-instance policy 'policy)))
          (executor (ensure-instance executor 'executor)))
-    (execute plan executor)))
+    (execute (realize plan executor) executor)))
 
 (defmethod parse-project ((module module) project-definition)
   (let ((type (getf project-definition :type (default-project-type module)))

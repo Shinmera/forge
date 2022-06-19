@@ -32,7 +32,8 @@
                   (:then () (setf (complete-p step) T) step))))
 
 (defmethod realize ((plan plan) (executor executor))
-  (map-steps (lambda (step) (realize step executor)) plan))
+  (do-steps (step plan :gather T)
+    (realize step executor)))
 
 (defmethod realize ((step step) (executor executor))
   (localize (operation step) (component step) (select-client step executor)))
@@ -40,9 +41,25 @@
 (defmethod map-steps (function (plan plan) &key gather)
   (let ((tentative (map 'list #'identity (first-steps plan)))
         (map (make-hash-table :test 'eq)))
+    ;; First map the steps
     (loop while tentative
           for step = (pop tentative)
-          do ())))
+          do (unless (gethash step map)
+               (let ((replacement (funcall function step)))
+                 (setf (gethash step map) (or replacement T)))
+               (dolist (step (successors step))
+                 (push step tentative))))
+    ;; Then replace the new links in the new steps and put them into a plan.
+    (when gather
+      (flet ((rep (step)
+               (gethash step map)))
+        (loop for step being the hash-values of map
+              do (setf (predecessors step) (mapcar #'rep (predecessors step)))
+                 (setf (successors step) (mapcar #'rep (successors step))))
+        (let ((plan (make-instance 'plan)))
+          (setf (first-steps plan) (map 'vector #'rep (first-steps plan)))
+          (setf (final-steps plan) (map 'vector #'rep (final-steps plan)))
+          plan)))))
 
 (defclass single-executor ()
   ((client :initarg :client :initform NIL :accessor client)))
@@ -50,7 +67,7 @@
 (defmethod select-client ((step step) (executor single-executor))
   (client executor))
 
-(defmethod realize ((plan plan) (executor single-executor))
+(defmethod realize :before ((plan plan) (executor single-executor))
   (unless (client executor)
     (dolist (client (list-clients *server*))
       (unless (eql :skip (do-steps (step plan)
@@ -59,10 +76,7 @@
         (setf (client executor) client)
         (return))))
   (unless (client executor)
-    (error "Could not find any client that can execute all steps in this plan."))
-  (map-steps (lambda (step)
-               (localize (operation step) (component step) (client executor)))
-             plan :gather T))
+    (error "Could not find any client that can execute all steps in this plan.")))
 
 (defun compute-step-sequence (plan)
   (let ((visit (make-hash-table :test 'eq))
