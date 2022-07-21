@@ -1,3 +1,4 @@
+[ image logo.svg ]
 # AAAAAAAAAAAAAAAAAAAAAAAAa
 This is still in flux
 
@@ -120,56 +121,8 @@ In order to resolve a dependency, a database is first searched for effects that 
 Once the graph of effects has been computed, it is transformed into a graph of ``steps`` to form a ``plan``. Each ``step`` retains the exact effect, operation, and component selected by the planner, and holds a list of ``predecessors`` and ``successors`` steps.
 
 #### Execution
-A completed ``plan`` can then be ``execute``d in combination with an ``executor``. The executor defines how steps are distributed to clients, allowing both for entirely linear execution on a single client, as well as parallelised or distributed execution (more on that below).
+Since a ``plan`` is completely independent of any filesystem or client, before a ``plan`` can be executed, it must first be ``realize``d. During realization, the set of clients that will execute steps is selected, individual steps are allocated to the clients, and the steps are transformed into ``local-step``s, which contain information that is localised to a specific client.
 
-The executor may first transform the step graph and eliminate unneeded steps to avoid unnecessary work. Afterwards, the exact operation of the executor is not strictly defined aside from the requirement that a step may only be executed once all its predecessors have been executed.
+During realization the ``executor`` may also already mark steps as ``complete``, if it can determine that the client has performed the operation before and can instead re-use a cached version.
 
 One important detail is that ``execute`` and ``perform`` both must return a ``promise`` object, and the executor must ensure that ``perform`` is not called eagerly or synchronously, as the communication with clients requires that the execution of a step happen asynchronously.
-
-#### Distribution
-Forge contains an abstract representation of a network of ``peer``s, one of which being a ``server`` that holds all the project data, and all others being ``client``s. Each ``peer`` runs on a ``machine``, which may or may not be the same as the ``server``.
-
-This abstraction allows us to treat multi-threaded or multi-process execution the same as networked execution. The only complication that comes into play is when we deal with the file system. To abstract away this, each ``machine`` has a number of ``registry``s, each with a unique name. Every instance of a ``registry`` with the same name represents the same set of ``artefact``s even across multiple machines. Not every instance may contain all ``artefact``s, though any plan will include steps to synchronise the registries across multiple machines.
-
-An ``artefact`` itself has a ``path`` relative to its parent ``registry``. The ``artefact`` will also cache known file attributes such as its modification-time, hash, and size, in order to catch changes to the file on disk.
-
-We'll illustrate how things work with a brief example:
-
-- Machine A
-  - Peers:
-    - Client A1
-    - Server
-  - Registries:
-    - sbcl-2.1.10
-      - my-project-1/package.fasl
-      - my-project-1/test.fasl
-    - my-project-1
-      - package.lisp
-      - test.lisp
-      - new-file.lisp
-- Machine B
-  - Peers:
-    - Client B1
-  - Registries:
-    - my-project-1
-      - package.lisp
-      - test.lisp
-
-As you can see, the registries on both machines differ, in this case presumably because no build has happened of ``my-project-1`` on it yet, and the project itself was synchronised at some earlier point, when the ``new-file.lisp`` did not exist yet.
-
-If we were now to build ``my-project-1`` using ``Client B1`` in our execution, the system would first transfer over ``new-file.lisp`` (and potentially other changed files), then perform the compilation. The registries on ``Machine B`` would then look something like this:
-
-- Machine B
-  - sbcl-2.1.10
-    - my-project-1/package.fasl
-    - my-project-1/test.fasl
-    - my-project-1/new-file.fasl
-  - my-project-1
-    - package.lisp
-    - test.lisp
-    - new-file.lisp
-
-The server could then opt to transfer the ``fasl`` build artefacts back from ``Machine B`` over to ``Machine A`` so that local builds could be sped up.
-
-``artefact``s and ``registry``s are created on the server machine as necessary as new projects are registered, and only ever pro-actively created on client machines as plan execution side-effects. The system **does not** detect changes that might have been made to the artefacts on a remote machine.
-
