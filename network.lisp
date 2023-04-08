@@ -4,6 +4,12 @@
  Author: Nicolas Hafner <shinmera@tymoon.eu>
 |#
 
+;;;; Description:
+;;; This file defines the protocol for the distributed computing system used in
+;;; Forge. Machines define physical setups that contain files, peers define
+;;; programs that run on a machine and are connected to the network, and finally
+;;; the server and clients define operators that can receive and issue requests.
+
 (in-package #:org.shirakumo.forge)
 
 (defvar *server* NIL)
@@ -13,6 +19,9 @@
 
 (support:define-condition* no-such-machine (error)
   (name server) ("No machine with the name~%  ~s~%is registered on~%  ~a" name server))
+
+(defclass machine ()
+  ((name :initarg :name :initform (support:arg! :name) :reader name)))
 
 (defclass peer ()
   ((name :initarg :name :initform (support:arg! :name) :reader name)
@@ -25,24 +34,6 @@
 
 (defmethod communication:alive-p ((peer peer))
   (communication:alive-p (connection peer)))
-
-(defmethod find-registry (name (peer peer) &rest args)
-  (apply #'find-registry name (machine peer) args))
-
-(defmethod (setf find-registry) (registry name (peer peer) &rest args)
-  (apply #'(setf find-registry) registry name (machine peer) args))
-
-(defmethod artefact-pathname (artefact (peer peer))
-  (artefact-pathname artefact (machine peer)))
-
-(defmethod pathname-artefact (artefact (peer peer) &rest args)
-  (apply #'pathname-artefact artefact (machine peer) args))
-
-(defmethod find-artefact (designator (peer peer) &rest args &key &allow-other-keys)
-  (apply #'find-artefact designator (machine peer) args))
-
-(defmethod delete-artefact (designator (peer peer))
-  (delete-artefact designator (machine peer)))
 
 (defclass server (peer)
   ((name :initform :server)
@@ -67,7 +58,6 @@
 (defgeneric find-machine (name server &key if-does-not-exist))
 (defgeneric (setf find-machine) (machine name server &key if-exists))
 (defgeneric delete-machine (name server))
-(defgeneric artefact-changed-p (artefact server))
 (defgeneric message-loop (server))
 (defgeneric promise-loop (server))
 
@@ -159,19 +149,6 @@
 (defmethod delete-machine (name (server server))
   (remhash name *machines*)
   name)
-
-(defmethod artefact-changed-p ((artefact artefact) (server server))
-  (let ((path (artefact-pathname artefact (machine server))))
-    (or (< (mtime artefact) (file-write-date path))
-        (with-open-file (stream path :element-type '(unsigned-byte 8))
-          (or (/= (size artefact) (file-length path))
-              (not (equal (hash artefact) (hash-file stream))))))))
-
-(defmethod artefact-changed-p (path (server server))
-  (artefact-changed-p (pathname-artefact path server) server))
-
-(defmethod artefact-changed-p (artefact (server (eql T)))
-  (artefact-changed-p artefact *server*))
 
 (defmethod handshake ((server server) (connection communication:connection) (message communication:connect))
   (case (communication:version message)
@@ -355,11 +332,3 @@
   (v:info :forge.network "Closing connection to ~a" client)
   (remhash (name client) (clients (server client)))
   (close (connection client) :abort abort))
-
-;; KLUDGE: patch decoding of artefacts here to ensure we get actual artefact instances instead of
-;;         just references to them through the communications protocol.
-(defmethod communication:decode-message ((id (eql (communication:encoding-type-id 'communication:artefact))) (stream stream))
-  (let ((registry (communication:decode-message T stream))
-        (path (communication:decode-message T stream))
-        (machine (communication:decode-message T stream)))
-    (find-artefact path (find-machine machine *server*) :registry registry)))

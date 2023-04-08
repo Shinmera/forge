@@ -4,6 +4,14 @@
  Author: Nicolas Hafner <shinmera@tymoon.eu>
 |#
 
+;;;; Description:
+;;; In this file the "module" protocol is defined. Modules allow for extensions
+;;; to Forge's capabilities and are what's used to define the required
+;;; components, operations, and effects to actually build projects for a
+;;; particular language.
+;;; The blueprint system hooks into the module system to automatically load the
+;;; desired modules into the Forge process.
+
 (in-package #:org.shirakumo.forge)
 
 (support:define-condition* no-such-module (error)

@@ -4,11 +4,102 @@
  Author: Nicolas Hafner <shinmera@tymoon.eu>
 |#
 
+;;;; Description:
+;;; This file defines the blueprint mechanism, which is the way by which
+;;; users define projects and their components for Forge. Blueprints by
+;;; themselves are merely files with the fixed name "blueprint", which
+;;; contain a number of project definition expressions.
+
 (in-package #:org.shirakumo.forge)
 
-(defvar *blueprint-truename* NIL)
+(defvar *blueprints* (make-hash-table :test 'equal))
 (defvar *blueprint-search-paths* ())
-(defvar *blueprint-timestamp-cache* (make-hash-table :test 'equal))
+(defvar *blueprint* NIL)
+
+(support:define-condition* no-such-blueprint (error)
+  (path) ("Could not find a registered blueprint with path~%  ~a" path))
+
+(defclass blueprint ()
+  ((path :initform NIL :accessor path)
+   (hash :initarg :hash :initform NIL :accessor hash)
+   (projects :initform (make-hash-table :test 'equalp) :accessor projects)))
+
+(defmethod shared-initialize :after ((blueprint blueprint) slots &key path hash)
+  (when path
+    (setf (path blueprint) path))
+  (when (and path (null hash))
+    (setf (hash blueprint) (hash-file path))))
+
+(defmethod print-object ((blueprint blueprint) stream)
+  (print-unreadable-object (blueprint stream :type T)
+    (format stream "~a" (path blueprint))))
+
+(defmethod make-load-form ((blueprint blueprint) &optional env)
+  (declare (ignore env))
+  `(blueprint ,(path blueprint)))
+
+(defmethod (setf path) ((path pathname) (blueprint blueprint))
+  (let ((old (path blueprint)))
+    (setf (slot-value blueprint 'path) (truename path))
+    (when old (setf (blueprint old) NIL))
+    (setf (blueprint path) blueprint)))
+
+(defmethod blueprint ((path pathname))
+  (or (gethash (truename path) *blueprints*)
+      (restart-case (error 'no-such-blueprint :path path)
+        (load-blueprint ()
+          :report "Try to load the file as a blueprint"
+          (load-blueprint path)))))
+
+(defmethod (setf blueprint) ((blueprint blueprint) (path pathname))
+  (setf (gethash (truename path) *blueprints*) blueprint))
+
+(defmethod (setf blueprint) ((null null) (path pathname))
+  (remhash path *blueprints*))
+
+(defun list-blueprints ()
+  (alexandria:hash-table-values *blueprints*))
+
+(defmethod load-blueprint-file ((blueprint blueprint) path)
+  ;; FIXME: use Eclector to catch attempts at introducing symbols into external packages
+  (with-standard-io-syntax
+    (let* ((hash (hash-file path))
+           (blueprint-package (make-blueprint-package))
+           (*package* blueprint-package)
+           (*read-eval* NIL))
+      (unwind-protect
+           (with-open-file (stream path :direction :input :external-format :utf-8)
+             (loop with *blueprint* = blueprint
+                   for form = (read stream NIL '#1=#:eof)
+                   until (eq form '#1#)
+                   do (etypecase form
+                        (cons
+                         (handle-blueprint-form (car form) (cdr form)))))
+             (setf (hash blueprint) hash)
+             blueprint)
+        (ignore-errors (delete-package blueprint-package))))))
+
+(defmethod load-blueprint ((blueprint blueprint) &key force)
+  (when (or force (string/= (hash blueprint) (hash-file (path blueprint))))
+    (let ((temp (tempfile :type "lisp")))
+      ;; We copy the file out to ensure that changes to the original while loading
+      ;; don't impact the load and are properly detected as new changes when
+      ;; attempting to load the file again.
+      (uiop:copy-file (path blueprint) temp)
+      (restart-case (load-blueprint-file blueprint temp)
+        (abort ()
+          :report "Ignore the failed load"
+          NIL)
+        (remove ()
+          :report "Remove the blueprint"
+          (setf (blueprint (path blueprint)) NIL)
+          NIL)))))
+
+(defmethod load-blueprint ((path pathname) &key force)
+  (let ((blueprint (gethash path *blueprints*)))
+    (unless blueprint
+      (setf blueprint (make-instance 'blueprint :path path :hash "")))
+    (load-blueprint blueprint :force force)))
 
 (defun add-blueprint-search-path (path &key discover if-exists)
   (loop for existing in *blueprint-search-paths*
@@ -21,158 +112,23 @@
     (load-blueprints (discover-blueprints (list path))))
   path)
 
-#+linux
-(progn ; Much faster scanning on linux using the d_type and direct byte comparisons.
-  (cffi:defcstruct (dirent :class dirent :conc-name dirent-)
-    (inode :size)
-    (offset :size)
-    (length :uint16)
-    (type :uint8)
-    (name :char :count 256))
+(defun discover-blueprint-files (&optional (paths *blueprint-search-paths*))
+  (let ((paths ()))
+    (dolist (path paths paths)
+      (scan-directory (truename path) "blueprint" (lambda (path) (push path paths))))))
 
-  (cffi:defcfun strlen :size
-    (path :pointer))
-
-  (cffi:defcfun strcmp :int
-    (a :pointer)
-    (b :pointer))
-
-  (cffi:defcfun strcpy :int
-    (dest :pointer)
-    (src :pointer))
-
-  (cffi:defcfun opendir :pointer
-    (dir :pointer))
-
-  (cffi:defcfun closedir :int
-    (dir :pointer))
-
-  (cffi:defcfun readdir :pointer
-    (dir :pointer))
-
-  (cffi:defcfun openat :int
-    (dir :int)
-    (name :pointer)
-    (flags :int))
-
-  (cffi:defcfun fdopendir :pointer
-    (fd :int))
-
-  (cffi:defcfun readlink :ssize
-    (path :string)
-    (target :pointer)
-    (size :size))
-
-  (defun scan-directory (dir callback)
-    (cffi:with-foreign-string (blueprint "blueprint")
-      (cffi:with-foreign-object (path :char 4096)
-        (cffi:lisp-string-to-foreign (namestring dir) path 4096)
-        (labels ((scan (fd)
-                   (let ((handle (fdopendir fd)))
-                     (unless (cffi:null-pointer-p handle)
-                       (unwind-protect
-                            (loop for entry = (readdir handle)
-                                  until (cffi:null-pointer-p entry)
-                                  do (let* ((name (cffi:foreign-slot-pointer entry '(:struct dirent) 'name))
-                                            (namelen (strlen name)))
-                                       (when (or (< 2 namelen)
-                                                 (and (/= (char-code #\.) (cffi:mem-aref name :char 0))
-                                                      (/= (char-code #\.) (cffi:mem-aref name :char 1))))
-                                         (flet ((dir (fd)
-                                                  (unwind-protect (scan fd)
-                                                    (cffi:foreign-funcall "close" :int fd :int)))
-                                                (file (fd)
-                                                  (when (= 0 (strcmp name blueprint))
-                                                    (funcall callback (format NIL "~a/blueprint" (sb-posix:readlink (format NIL "/proc/self/fd/~d" fd)))))))
-                                           (case (dirent-type entry)
-                                             (0 ; Unknown
-                                              (let ((inner (openat fd name 592128)))
-                                                (if (= -1 inner)
-                                                    (file fd)
-                                                    (dir inner))))
-                                             (4 ; Directory
-                                              (dir (openat fd name 592128)))
-                                             (8 ; Regular
-                                              (file fd)))))))
-                         (closedir handle))))
-                   T))
-          (let ((fd (cffi:foreign-funcall "open" :pointer path :int 592128 :int)))
-            (unless (= -1 fd)
-              (scan fd))))))))
-
-#-linux
-(defun scan-directory (dir callback)
-  (dolist (path (directory (merge-pathnames "**/blueprint" dir)))
-    (funcall callback path)))
-
-(defun discover-blueprints (&optional (paths *blueprint-search-paths*))
-  (let ((blueprints ()))
-    (dolist (path paths blueprints)
-      (scan-directory (truename path) (lambda (path) (push path blueprints))))))
-
-(defun load-blueprints (&optional (paths (discover-blueprints)))
+(defun load-blueprints (&key (paths (discover-blueprint-files)) force)
   (loop for path in paths
-        for value = (maybe-load-blueprint path)
+        for value = (load-blueprint path :force force)
         when value collect value))
 
 (defun reload-blueprints (&key force)
-  (loop for path being the hash-keys of *blueprint-timestamp-cache*
-        for result = (cond ((not (probe-file path))
-                            (warn 'blueprint-no-longer-exists :path path)
-                            NIL)
-                           (force
-                            (load-blueprint path))
-                           (T
-                            (maybe-load-blueprint path)))
-        when result collect result))
-
-(defun maybe-load-blueprint (path)
-  (let ((actual-date (file-write-date path)))
-    (destructuring-bind (&optional (cached-date 0) (hash #())) (gethash path *blueprint-timestamp-cache*)
-      (when (or (< cached-date actual-date)
-                (and (= cached-date actual-date)
-                     (not (equal hash (hash-file path)))))
-        (load-blueprint path)))))
+  (loop for blueprint being the hash-values of *blueprints*
+        do (load-blueprint blueprint :force force)))
 
 (defun make-blueprint-package ()
   (let ((package (make-package (format NIL "ORG.SHIRAKUMO.FORGE.BLUEPRINT.~a" (random-id)) :use ())))
     (sb-ext:add-package-local-nickname "FORGE" #.*package* package)
     package))
 
-(defun load-blueprint-file (path)
-  ;; FIXME: use Eclector to catch attempts at introducing symbols into external packages
-  (with-open-file (stream path :direction :input :external-format :utf-8)
-    (loop for form = (read stream NIL '#1=#:eof)
-          until (eq form '#1#)
-          do (etypecase form
-               (cons
-                (handle-blueprint-form (car form) (cdr form)))))))
-
 (defgeneric handle-blueprint-form (operator args))
-
-(defun load-blueprint (path)
-  (let* ((path (truename path))
-         (temp (tempfile :type "lisp"))
-         (date (file-write-date path)))
-    ;; We copy the file out to ensure that changes to the original while loading
-    ;; don't impact the load and are properly detected as new changes when
-    ;; attempting to load the file again.
-    (uiop:copy-file path temp)
-    (with-standard-io-syntax
-      (let* ((hash (hash-file temp))
-             (blueprint-package (make-blueprint-package))
-             (*blueprint-truename* path)
-             (*package* blueprint-package)
-             (*read-eval* NIL))
-        (unwind-protect
-             (load-blueprint-file path)
-          (ignore-errors (delete-package blueprint-package))
-          (ignore-errors (delete-file temp)))
-        ;; Now that we successfully loaded, use the cached file properties.
-        (setf (gethash path *blueprint-timestamp-cache*)
-              (list date hash))))
-    path))
-
-(defun list-blueprints ()
-  (loop for file being the hash-keys of *blueprint-timestamp-cache*
-        collect file))

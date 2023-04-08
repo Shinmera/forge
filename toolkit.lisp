@@ -141,3 +141,57 @@
 
 (defun delist (a &optional (n 0))
   (if (listp a) (nth n a) a))
+
+
+#+linux
+(progn ; Much faster scanning on linux using the d_type and direct byte comparisons.
+  (cffi:defcstruct (dirent :class dirent :conc-name dirent-)
+    (inode :size)
+    (offset :size)
+    (length :uint16)
+    (type :uint8)
+    (name :char :count 256))
+
+  (defun scan-directory (dir filename callback)
+    (cffi:with-foreign-string (blueprint filename)
+      (cffi:with-foreign-object (path :char 4096)
+        (cffi:lisp-string-to-foreign (pathname-utils:native-namestring dir) path 4096)
+        (labels ((scan (fd)
+                   (let ((handle (cffi:foreign-funcall "fdopendir" :int fd :pointer)))
+                     (unless (cffi:null-pointer-p handle)
+                       (unwind-protect
+                            (loop for entry = (cffi:foreign-funcall "readdir" :pointer handle :pointer)
+                                  until (cffi:null-pointer-p entry)
+                                  do (let* ((name (cffi:foreign-slot-pointer entry '(:struct dirent) 'name))
+                                            (namelen (cffi:foreign-funcall "strlen" :pointer name :size)))
+                                       (when (or (< 2 namelen)
+                                                 (and (/= (char-code #\.) (cffi:mem-aref name :char 0))
+                                                      (/= (char-code #\.) (cffi:mem-aref name :char 1))))
+                                         (flet ((dir (fd)
+                                                  (unwind-protect (scan fd)
+                                                    (cffi:foreign-funcall "close" :int fd :int)))
+                                                (file (fd)
+                                                  (when (= 0 (cffi:foreign-funcall "strcmp" :pointer name :pointer blueprint :int))
+                                                    (funcall callback (format NIL "~a/~a"
+                                                                              (sb-posix:readlink (format NIL "/proc/self/fd/~d" fd))
+                                                                              filename)))))
+                                           (case (dirent-type entry)
+                                             (0 ; Unknown
+                                              (let ((inner (cffi:foreign-funcall "openat" :int fd :pointer name :int 592128 :int)))
+                                                (if (= -1 inner)
+                                                    (file fd)
+                                                    (dir inner))))
+                                             (4 ; Directory
+                                              (dir (cffi:foreign-funcall "openat" :int fd :pointer name :int 592128 :int)))
+                                             (8 ; Regular
+                                              (file fd)))))))
+                         (cffi:foreign-funcall "closedir" :pointer handle :int))))
+                   T))
+          (let ((fd (cffi:foreign-funcall "open" :pointer path :int 592128 :int)))
+            (unless (= -1 fd)
+              (scan fd))))))))
+
+#-linux
+(defun scan-directory (dir filename callback)
+  (dolist (path (directory (merge-pathnames (merge-pathnames filename "**/") dir)))
+    (funcall callback path)))

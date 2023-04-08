@@ -4,6 +4,12 @@
  Author: Nicolas Hafner <shinmera@tymoon.eu>
 |#
 
+;;;; Description:
+;;; This file defines a protocol to describe version constraints
+;;; and a way to test and unify such constraints. These constraint
+;;; mechanisms are used in the planning system to ensure that we
+;;; only allow permutations of compatible parts.
+
 (in-package #:org.shirakumo.forge)
 
 (define-condition constraints-incompatible (error)

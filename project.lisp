@@ -4,6 +4,12 @@
  Author: Nicolas Hafner <shinmera@tymoon.eu>
 |#
 
+;;;; Description:
+;;; This file describes the project protocol, which is the top-level
+;;; entry point by which users define their components and dependencies.
+;;; A project is typically defined via a source expression in a blueprint
+;;; file, but is not necessarily so.
+
 (in-package #:org.shirakumo.forge)
 
 (support:define-condition* no-such-project (error)
@@ -18,7 +24,7 @@
   ())
 
 (defclass project (dependencies-component parent-component)
-  ((blueprint :initarg :blueprint :initform *blueprint-truename* :reader blueprint)
+  ((blueprint :initarg :blueprint :initform *blueprint* :reader blueprint)
    metadata))
 
 (defmethod shared-initialize :after ((project project) slots &key (components NIL components-p))
@@ -66,7 +72,7 @@
 (defgeneric ensure-version (version-ish))
 (defgeneric parse-project (module project-definition))
 (defgeneric find-project (name &key version if-does-not-exist))
-(defgeneric register-project (project &optional source-path))
+(defgeneric register-project (project blueprint))
 (defgeneric delete-project (project))
 (defgeneric in-order-to (operation project))
 (defgeneric build (project &key policy executor))
@@ -74,6 +80,10 @@
 (defgeneric parse-component (project spec))
 (defgeneric default-component-type (project))
 (defgeneric default-project-type (module))
+
+(defmethod path ((project project))
+  (when (blueprint project)
+    (path (blueprint project))))
 
 (defmethod normalize-component-spec ((project project) spec)
   (enlist spec))
@@ -89,7 +99,6 @@
       (copy-list (gethash name *projects*))
       (let ((projects ()))
         (loop for versions being the hash-values of *projects*
-              when (typep versions 'list)
               do (loop for project in versions
                        do (push project projects)))
         projects)))
@@ -119,26 +128,25 @@
 (defmethod find-project ((name symbol) &rest args)
   (apply #'find-project (string name) args))
 
-(defmethod register-project ((project project) &optional source-path)
+(defmethod register-project :around ((project project) source)
+  (with-simple-restart (abort "Don't register the new project.")
+    (call-next-method)))
+
+(defmethod register-project ((project project) source)
   (let* ((name (string-downcase (name project)))
-         (versions (gethash name *projects*))
-         (existing-path (gethash project *projects*)))
-    (with-simple-restart (abort "Don't register the new project.")
-      (when source-path
-        (with-simple-restart (abort "Don't change the source path.")
-          (when (and existing-path (not (equal existing-path source-path)))
-            (warn 'project-source-path-changed :project project :new source-path :old existing-path))
-          (setf (gethash project *projects*) source-path)))
-      (pushnew project versions)
-      (setf (gethash name *projects*) versions))
+         (versions (gethash name *projects*)))
+    (pushnew project versions)
+    (setf (gethash name *projects*) versions)
     project))
 
+(defmethod register-project :before ((project project) (blueprint blueprint))
+  (when (and (blueprint project) (not (eq blueprint (blueprint project))))
+    (warn 'project-source-path-changed :project project :old (blueprint project) :new blueprint))
+  (pushnew project (projects blueprint)))
+
 (defmethod delete-project (name)
-  (let ((versions (gethash name *projects*)))
-    (remhash (string-downcase name) *projects*)
-    (dolist (project versions)
-      (remhash project *projects*))
-    name))
+  (remhash (string-downcase name) *projects*)
+  name)
 
 (defmethod delete-project ((project project))
   (let* ((name (string-downcase (name project)))
@@ -150,9 +158,8 @@
     name))
 
 (defmethod delete-project ((all (eql T)))
-  (mapc #'delete-project (loop for project being the hash-keys of *projects*
-                               when (typep project 'project)
-                               collect project)))
+  (loop for versions being the hash-values of *projects*
+        do (mapc #'delete-project versions)))
 
 (defmethod handle-blueprint-form ((operator (eql 'define-project)) args)
   (funcall (compile NIL `(lambda () (,operator ,@args)))))
@@ -162,12 +169,12 @@
         (versiong (gensym "VERSION"))
         (instance (gensym "INSTANCE")))
     (destructuring-bind (type name version initargs) (parse-project module args)
-      `(let* ((*blueprint-truename* ,*blueprint-truename*)
+      `(let* ((*blueprint* ,*blueprint*)
               (,versiong (ensure-version ,version))
               (,instance (or (find-project ',name :version ,versiong :if-does-not-exist NIL)
                              (make-instance ',type :name ,name :version ,versiong))))
          (reinitialize-instance ,instance ,@initargs)
-         (register-project ,instance ,*blueprint-truename*)))))
+         (register-project ,instance *blueprint*)))))
 
 (defmethod build (project &rest args)
   (apply #'build (find-project project :if-does-not-exist :error) args))
@@ -195,37 +202,3 @@
 
 (defmethod default-project-type ((module forge))
   'project)
-
-
-(defclass artefact-project (project)
-  ((registry :accessor registry)))
-
-(defmethod shared-initialize ((project artefact-project) slots &key)
-  (call-next-method)
-  (unless (slot-boundp project 'registry)
-    (setf (registry project) (find-registry (name project) *server* :if-does-not-exist (blueprint project)))))
-
-(defmethod default-component-type ((project artefact-project))
-  'artefact-component)
-
-(defmethod normalize-component-spec ((project artefact-project) component)
-  (let* ((registry (registry project))
-         (root (path registry)))
-    (destructuring-bind (file . args) (enlist component)
-      (if (wild-pathname-p file)
-          (loop for file in (directory (merge-pathnames file root))
-                collect (list* (enough-namestring file root) args))
-          (list (list* file args))))))
-
-(defmethod parse-component ((project artefact-project) spec)
-  (destructuring-bind (path . args) spec
-    (let ((type (getf args :type (default-component-type project)))
-          (name (getf args :name path))
-          (version (getf args :version (version project)))
-          (artefact (find-artefact path (registry project) :if-does-not-exist :create)))
-      (list* type
-             :name name
-             :artefact artefact
-             :version version
-             :parent project
-             (removef args :type :name :artefact :version)))))

@@ -1,10 +1,11 @@
 #|
-This file is a part of forge
-(c) 2020 Shirakumo http://tymoon.eu (shinmera@tymoon.eu)
-Author: Nicolas Hafner <shinmera@tymoon.eu>
+ This file is a part of forge
+ (c) 2020 Shirakumo http://tymoon.eu (shinmera@tymoon.eu)
+ Author: Nicolas Hafner <shinmera@tymoon.eu>
 |#
 
-;; Patchup for server side with usocket.
+;;;; Description:
+;;; This file patches up the other side of the TCP protocol for server-side communication.
 
 (in-package #:org.shirakumo.forge.communication.tcp)
 

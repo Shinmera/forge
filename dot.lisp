@@ -4,6 +4,10 @@
  Author: Nicolas Hafner <shinmera@tymoon.eu>
 |#
 
+;;;; Description:
+;;; This file defines a Graphviz plotter to visualise plans and
+;;; other parts of the Forge ecosystem for easier debugging.
+
 (in-package #:org.shirakumo.forge)
 
 (defgeneric dot (thing stream))

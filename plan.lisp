@@ -4,6 +4,13 @@
  Author: Nicolas Hafner <shinmera@tymoon.eu>
 |#
 
+;;;; Description:
+;;; This file defines the general planning protocol and algorithm.
+;;; The planning system is responsible for taking abstract definitions of
+;;; operations, components, effects, and versions of each of them and
+;;; computing a tree (plan) of required operations on components to achieve
+;;; a desired end-effect.
+
 (in-package #:org.shirakumo.forge)
 
 (support:define-condition* dependency-cycle-detected (error)

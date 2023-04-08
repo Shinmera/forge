@@ -4,6 +4,12 @@
  Author: Nicolas Hafner <shinmera@tymoon.eu>
 |#
 
+;;;; Description:
+;;; This file defines a protocol for the manipulation of version designators
+;;; as well as a variety of commonly encountered versions designator types.
+;;; It also allows parsing versions from a string representation, though due
+;;; to variations in the notation this may not always work as expected.
+
 (in-package #:org.shirakumo.forge)
 
 (defclass version ()

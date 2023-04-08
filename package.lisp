@@ -15,25 +15,6 @@
    (#:promise #:org.shirakumo.promise)
    (#:bt #:bordeaux-threads)
    (#:v #:org.shirakumo.verbose))
-  ;; artefact.lisp
-  (:export
-   #:machine
-   #:name
-   #:find-registry
-   #:artefact-pathname
-   #:pathname-artefact
-   #:registry
-   #:name
-   #:path
-   #:find-artefact
-   #:delete-artefact
-   #:artefact
-   #:path
-   #:registry
-   #:size
-   #:hash
-   #:mtime
-   #:probe)
   ;; basic.lisp
   (:export
    #:basic-database
@@ -43,15 +24,6 @@
    #:linear-executor
    #:force
    #:client
-   #:artefact-effect
-   #:artefact-component
-   #:artefact
-   #:artefact-output-operation
-   #:output-artefact
-   #:realize-artefact
-   #:artefact-input-operation
-   #:input-artefact
-   #:ensure-artefact-operation
    #:compiler-operation
    #:compiler
    #:name
@@ -60,8 +32,6 @@
    #:output-file-type
    #:compiler-input-operation
    #:input-file-type
-   #:artefact-project
-   #:registry
    #:parent-component
    #:children
    #:child-component
@@ -71,15 +41,19 @@
    #:normalize-dependency-spec)
   ;; blueprint.lisp
   (:export
-   #:*blueprint-truename*
+   #:*blueprint*
    #:*blueprint-search-paths*
+   #:blueprint
+   #:path
+   #:projects
+   #:list-blueprints
+   #:load-blueprint-file
+   #:load-blueprint
    #:add-blueprint-search-path
-   #:discover-blueprints
+   #:discover-blueprint-files
    #:load-blueprints
    #:reload-blueprints
-   #:maybe-load-blueprint
-   #:load-blueprint
-   #:list-blueprints)
+   #:handle-blueprint-form)
   ;; constraints.lisp
   (:export
    #:constraints-incompatible
@@ -133,7 +107,6 @@
    #:list-clients
    #:find-machine
    #:delete-machine
-   #:artefact-changed-p
    #:with-promise
    #:client
    #:server

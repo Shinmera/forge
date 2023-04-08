@@ -4,6 +4,11 @@
  Author: Nicolas Hafner <shinmera@tymoon.eu>
 |#
 
+;;;; Description:
+;;; This file defines common mixin classes and behaviours that are generally
+;;; useful outside of a specific language module. Most notably it defines the
+;;; standard plan computation algorithm with the BASIC-POLICY.
+
 (in-package #:org.shirakumo.forge)
 
 (defclass basic-database (database)
@@ -291,125 +296,6 @@
   (promise:do-promised (step (compute-step-sequence plan))
     (handler-bind ((error #'invoke-debugger))
       (execute step executor))))
-
-(defclass artefact-effect (effect) ())
-
-(defmethod artefact ((effect artefact-effect))
-  (parameters effect))
-
-(defclass artefact-component (component)
-  ((artefact :initarg :artefact :reader artefact)))
-
-(defmethod initialize-instance ((component artefact-component) &key file registry)
-  (call-next-method)
-  (when (and file registry)
-    (setf (slot-value component 'artefact)
-          (find-artefact file *server* :registry registry :if-does-not-exist :create))))
-
-(defmethod supported-operations append ((component artefact-component))
-  '(ensure-artefact-operation))
-
-(defmethod artefact-pathname ((component artefact-component) registry)
-  (artefact-pathname (artefact component) registry))
-
-(defmethod artefact-changed-p ((component artefact-component) registry)
-  (artefact-changed-p (artefact component) registry))
-
-(defclass artefact-output-operation (operation)
-  ())
-
-(defgeneric output-artefact (operation component))
-(defgeneric realize-artefact (artefact operation))
-
-(defmethod output-artefact ((op symbol) component)
-  (output-artefact (prototype op) component))
-
-(defmethod realize-artefact ((artefact artefact) (operation operation))
-  artefact)
-
-(defmethod perform :around ((op artefact-output-operation) component client)
-  (promise:-> (call-next-method)
-    (:then () (register-artefact (output-artefact op component) client))))
-
-(defclass artefact-input-operation (operation)
-  ())
-
-(defmethod dependencies append ((op artefact-input-operation) (component artefact-component))
-  (list (depend 'artefact-effect (input-artefact op component))))
-
-(defgeneric input-artefact (operation component))
-
-(defmethod input-artefact ((op symbol) component)
-  (input-artefact (prototype op) component))
-
-(defclass ensure-artefact-operation (artefact-output-operation)
-  ())
-
-(defmethod make-effect ((op ensure-artefact-operation) (component artefact-component))
-  (ensure-effect op component 'artefact-effect (artefact component)))
-
-(defmethod output-artefact ((op ensure-artefact-operation) (component artefact-component))
-  (artefact component))
-
-(defmethod perform ((op ensure-artefact-operation) (component artefact-component) client)
-  (with-client-eval (client)
-    (communication:make-file (artefact-pathname component *server*)
-                             (artefact-pathname component client))))
-
-(defmethod effect-needed-p ((effect artefact-effect) (operation ensure-artefact-operation) (component artefact-component) (client client))
-  (and (not (eq (machine client) (machine *server*)))
-       (artefact-changed-p component *server*)))
-
-(defclass compiler-operation (operation)
-  ((compiler :initarg :compiler :initform NIL :accessor compiler)))
-
-(defmethod dependencies append ((op compiler-operation) (component artefact-component))
-  (list (depend 'artefact-effect (artefact component))))
-
-(defmethod make-operation ((operation compiler-operation) (policy policy))
-  (setf (compiler operation) (compiler policy))
-  operation)
-
-(defmethod realize-artefact ((artefact artefact) (operation compiler-operation))
-  (if (eq :compiler (registry artefact))
-      (let ((path (format NIL "~(~a/~)~a"
-                          (cache-directory (compiler operation))
-                          (path artefact))))
-        (find-artefact path *server* :registry :cache :if-does-not-exist :create))
-      artefact))
-
-(defclass compiler-output-operation (artefact-output-operation compiler-operation)
-  ())
-
-(defmethod make-effect ((op compiler-output-operation) (component artefact-component))
-  (ensure-effect op component 'artefact-effect (output-artefact op component)))
-
-(defgeneric output-file-type (operation component))
-
-(defmethod output-artefact ((op compiler-output-operation) (component artefact-component))
-  (let ((path (format NIL "~(~a/~a/~)~a.~a"
-                      (registry (artefact component))
-                      (to-string (version component))
-                      (path (artefact component))
-                      (output-file-type op component))))
-    (find-artefact path *server* :registry :compiler :if-does-not-exist :create)))
-
-(defmethod effect-needed-p ((effect artefact-effect) (op compiler-output-operation) (component artefact-component) (client client))
-  (or (not (find-artefact (artefact effect) client :if-does-not-exist NIL))
-      (artefact-supersedes-p (artefact component) (output-artefact op component))))
-
-(defclass compiler-input-operation (artefact-input-operation compiler-operation)
-  ())
-
-(defgeneric input-file-type (operation component))
-
-(defmethod input-artefact ((op compiler-input-operation) (component artefact-component))
-  (let ((path (format NIL "~(~a/~a/~)~a.~a"
-                      (registry (artefact component))
-                      (to-string (version component))
-                      (path (artefact component))
-                      (input-file-type op component))))
-    (find-artefact path *server* :registry :compiler :if-does-not-exist :create)))
 
 (defclass parent-component (component)
   ((children :initform (make-hash-table :test 'equal) :accessor children)))
