@@ -63,9 +63,9 @@
   (write-char #\Space stream)
   (dot (component step) stream))
 
-(defmethod dot ((component artefact-component) (stream stream))
+(defmethod dot ((component file-component) (stream stream))
   (format stream "~a" (list (registry (artefact component))
-                            (path (artefact component)))))
+                            (full-path component))))
 
 (defmethod dot ((component component) (stream stream))
   (format stream "~a" (type-of component)))

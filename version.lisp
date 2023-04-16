@@ -191,3 +191,15 @@
             (version version)
             (null *unknown-version*)
             (T (parse-version version))))))
+
+(defmethod version= ((a versioned-object) b)
+  (version= (version a) b))
+
+(defmethod version= (a (b versioned-object))
+  (version= a (version b)))
+
+(defmethod version< ((a versioned-object) b)
+  (version< (version a) b))
+
+(defmethod version< (a (b versioned-object))
+  (version< a (version b)))

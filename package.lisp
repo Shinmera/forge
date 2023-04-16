@@ -24,14 +24,9 @@
    #:linear-executor
    #:force
    #:client
-   #:compiler-operation
-   #:compiler
-   #:name
-   #:cache-directory
-   #:compiler-output-operation
-   #:output-file-type
-   #:compiler-input-operation
-   #:input-file-type
+   #:file-component
+   #:full-path
+   #:hash
    #:parent-component
    #:children
    #:child-component

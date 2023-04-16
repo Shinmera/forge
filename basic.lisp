@@ -12,7 +12,11 @@
 (in-package #:org.shirakumo.forge)
 
 (defclass basic-database (database)
-  ((effects :initform (make-hash-table :test 'eq) :reader effects)))
+  ((effects :initform (make-hash-table :test 'eq) :reader effects)
+   (version-cache :initform (make-hash-table :test 'eq) :reader version-cache)))
+
+;; Storage as follows:
+;; Effects: TYPE -> PARAMETERS -> [ EFFECT ]
 
 (defmethod map-effects (function (database basic-database) &optional type parameters version)
   (let ((function (etypecase function
@@ -22,46 +26,44 @@
            (let ((tables (gethash type (effects database))))
              (when tables
                (let ((effects (gethash (normalize-parameters type parameters) tables)))
-                 (when effects
-                   (etypecase version
-                     (version-constraint
-                      (loop for effect being the hash-values of effects
-                            do (when (version-match-p (version effect) version)
-                                 (funcall function effect))))
-                     (version
-                      (let ((effect (gethash (to-string version) effects)))
-                        (when effect (funcall function effect))))))))))
+                 (loop for effect in effects
+                       do (when (version-match-p (version effect) version)
+                            (funcall function effect)))))))
           (parameters
            (let ((tables (gethash type (effects database))))
              (when tables
                (let ((effects (gethash (normalize-parameters type parameters) tables)))
-                 (when effects
-                   (loop for effect being the hash-values of effects
-                         do (funcall function effect)))))))
+                 (loop for effect in effects
+                       do (funcall function effect))))))
           (type
            (let ((tables (gethash type (effects database))))
              (when tables
                (loop for effects being the hash-values of tables
-                     do (loop for effect being the hash-values of effects
+                     do (loop for effect in effects
                               do (funcall function effect))))))
           (T
            (loop for tables being the hash-values of (effects database)
                  do (loop for effects being the hash-values of tables
-                          do (loop for effect being the hash-values of effects
+                          do (loop for effect in effects
                                    do (funcall function effect))))))))
 
 (defmethod register-effect ((database basic-database) (effect effect))
   (let* ((tables (or (gethash (type-of effect) (effects database))
                      (setf (gethash (type-of effect) (effects database))
                            (make-hash-table :test 'equal))))
-         (effects (or (gethash (parameters effect) tables)
-                      (setf (gethash (parameters effect) tables)
-                            (make-hash-table :test 'equal))))
-         (version (to-string (version effect)))
-         (existing (gethash version effects)))
-    (when (and existing (not (eq existing effect)))
-      (error "Different effect with same parameters and version already exists!"))
-    (setf (gethash version effects) effect)))
+         (effects (gethash (parameters effect) tables))
+         (existing (find effect effects :test #'version=)))
+    (cond ((eq existing effect))
+          ((null existing)
+           (push effect (gethash (parameters effect) tables)))
+          (T
+           (error "Different effect with same parameters and version already exists!")))))
+
+(defmethod achieved-version ((database basic-database) (effect effect))
+  (gethash effect (version-cache effect) *unknown-version*))
+
+(defmethod (setf achieved-version) ((version version) (database basic-database) (effect effect))
+  (setf (gethash effect (version-cache effect)) version))
 
 (defclass parameter-plist-effect (effect)
   ())
@@ -285,23 +287,39 @@
             do (visit step))
       sequence)))
 
-(defmethod effect-needed-p ((effect effect) (operation operation) (component component) (executor linear-executor))
-  (effect-needed-p effect operation component (client executor)))
-
-(defmethod execute ((step step) (executor linear-executor))
-  (when (or (force executor) (step-needed-p step executor))
-    (perform step (operation step) (client executor))))
-
 (defmethod execute ((plan plan) (executor linear-executor))
   (promise:do-promised (step (compute-step-sequence plan))
     (handler-bind ((error #'invoke-debugger))
       (execute step executor))))
+
+(defclass file-component (component)
+  ((path :initarg :path :accessor path)))
+
+(define-print-object-method* file-component
+  "~s ~a ~a" name path (to-string (version file-component)))
+
+(defmethod full-path ((component file-component))
+  (path component))
+
+(defmethod version ((component file-component))
+  (let ((version (call-next-method))
+        (hash (make-instance 'hashed-version :value (hash-file (path component)))))
+    (if (typep version 'unknown-version)
+        hash
+        (make-instance 'compound-version :versions (list version hash)))))
+
+(defmethod hash ((component file-component))
+  (hash-file (path component)))
 
 (defclass parent-component (component)
   ((children :initform (make-hash-table :test 'equal) :accessor children)))
 
 (defclass child-component (component)
   ((parent :initarg :parent :initform (support:arg! :parent) :reader parent)))
+
+(defmethod full-path ((component child-component))
+  (merge-pathnames (call-next-method)
+                   (path (parent component))))
 
 (defclass dependencies-component (component)
   ((depends-on :initform () :accessor depends-on)))

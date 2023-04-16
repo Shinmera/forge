@@ -31,6 +31,8 @@
 (defgeneric list-effects (database &optional type parameters version))
 (defgeneric find-effect (database type parameters version &optional error))
 (defgeneric register-effect (database effect))
+(defgeneric achieved-version (database effect))
+(defgeneric (setf achieved-version) (version database effect))
 
 (defmethod map-effects (function (database (eql T)) &optional type parameters version)
   (map-effects function *database* type parameters version))
@@ -51,6 +53,9 @@
   (when error
     (error "No ~s effect of version ~a in database matching~%  ~s"
            type (to-string version) parameters)))
+
+(defmethod achieved-version ((database (eql T)) effect)
+  (achieved-version *database* effect))
 
 (defmacro do-effects ((effect database &optional type parameters version) &body body)
   (let ((thunk (gensym "THUNK")))
@@ -151,6 +156,12 @@
   (and (eq (type-of a) (type-of b))
        (equal (parameters a) (parameters b))))
 
+(defmethod achieved-version ((database database) (effect effect))
+  *unknown-version*)
+
+(defmethod (setf achieved-version) ((current (eql T)) (database database) (effect effect))
+  (setf (achieved-version database effect) (version effect)))
+
 (defclass compiler (versioned-object)
   ((name :initarg :name :initform (support:arg! :name) :reader name)
    (cache-directory :initarg :cache-directory :initform NIL :accessor cache-directory)))
@@ -190,6 +201,11 @@
    (final-steps :initarg :final-steps :initform #() :reader final-steps)))
 
 (defgeneric make-step (operation component effect))
+(defgeneric effect-achieved-p (effect policy))
+
+(defmethod effect-achieved-p ((effect effect) (policy policy))
+  ;;                                 v This feels wrong
+  (version= effect (achieved-version T effect)))
 
 (defmethod make-step ((operation operation) (component component) (effect effect))
   (make-instance 'step
@@ -220,7 +236,5 @@
   (setf (successors from) (delete to (successors from)))
   (setf (predecessors to) (delete from (predecessors to))))
 
-;; FIXME: ensure 'same-system deps' are assigned to same client or same machine.
-;; FIXME: getting artefacts from one client to another
 ;; FIXME: way of declaring "latest version" of known set
 ;;;       WORKAROUND: always pick latest version if multiple possible.

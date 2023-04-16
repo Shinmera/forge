@@ -38,8 +38,8 @@
 (defclass compile-effect (forge:effect) ())
 (defclass load-effect (forge:effect) ())
 
-(defclass file (forge:child-component forge:dependencies-component forge:artefact-component)
-  ((forge:version :initform (load-time-value (make-instance 'forge:integer-version)))))
+(defclass file (forge:child-component forge:dependencies-component forge:file-component)
+  ())
 
 (defmethod forge:supported-operations append ((file file))
   '(load-operation compile-file-operation load-fasl-operation))
@@ -51,21 +51,9 @@
     (forge:normalize-dependency-spec file component)))
 
 (defmethod forge:normalize-dependency-spec ((file file) (dependency file))
-  (forge:artefact dependency))
+  (forge: dependency))
 
-(defmethod forge:effect-needed-p ((effect load-effect) (operation forge:operation) (component file) (client forge:client))
-  (let ((time (gethash (forge:artefact-pathname component client) (load-tracking client))))
-    (or (null time) (< time (forge:mtime (forge:artefact component))))))
-
-(defclass lisp-compiler-operation (forge:compiler-operation)
-  ())
-
-(defmethod forge:select-compiler ((op lisp-compiler-operation) (policy forge:basic-policy))
-  ;; FIXME: need more info on the client's available compiler here...
-  (make-instance 'forge:compiler :name (lisp-implementation-type)
-                                 :version (forge:version-from-string (lisp-implementation-version))))
-
-(defclass lisp-source-operation (lisp-compiler-operation)
+(defclass lisp-source-operation (forge:operation)
   ((verbose :initarg :verbose :initform NIL :accessor verbose)))
 
 (defmethod forge:dependencies append ((op lisp-source-operation) (component file))
@@ -89,7 +77,7 @@
                   (lambda (_)
                     (setf (gethash path (load-tracking client)) time)))))
 
-(defclass compile-file-operation (forge:compiler-output-operation lisp-source-operation)
+(defclass compile-file-operation (lisp-source-operation)
   ())
 
 (defmethod forge:make-effect ((op compile-file-operation) (component file))
