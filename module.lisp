@@ -1,9 +1,3 @@
-#|
- This file is a part of forge
- (c) 2020 Shirakumo http://tymoon.eu (shinmera@tymoon.eu)
- Author: Nicolas Hafner <shinmera@tymoon.eu>
-|#
-
 ;;;; Description:
 ;;; In this file the "module" protocol is defined. Modules allow for extensions
 ;;; to Forge's capabilities and are what's used to define the required

@@ -1,9 +1,3 @@
-#|
- This file is a part of forge
- (c) 2020 Shirakumo http://tymoon.eu (shinmera@tymoon.eu)
- Author: Nicolas Hafner <shinmera@tymoon.eu>
-|#
-
 ;;;; Description:
 ;;; This file defines common mixin classes and behaviours that are generally
 ;;; useful outside of a specific language module. Most notably it defines the

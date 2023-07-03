@@ -1,9 +1,3 @@
-#|
- This file is a part of forge
- (c) 2020 Shirakumo http://tymoon.eu (shinmera@tymoon.eu)
- Author: Nicolas Hafner <shinmera@tymoon.eu>
-|#
-
 ;;;; Description:
 ;;; This file defines a Graphviz plotter to visualise plans and
 ;;; other parts of the Forge ecosystem for easier debugging.

@@ -1,9 +1,3 @@
-#|
- This file is a part of forge
- (c) 2020 Shirakumo http://tymoon.eu (shinmera@tymoon.eu)
- Author: Nicolas Hafner <shinmera@tymoon.eu>
-|#
-
 (in-package #:org.shirakumo.forge.support)
 
 (defun %launch (program args &key (output *standard-output*) (error *error-output*))

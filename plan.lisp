@@ -1,9 +1,3 @@
-#|
- This file is a part of forge
- (c) 2020 Shirakumo http://tymoon.eu (shinmera@tymoon.eu)
- Author: Nicolas Hafner <shinmera@tymoon.eu>
-|#
-
 ;;;; Description:
 ;;; This file defines the general planning protocol and algorithm.
 ;;; The planning system is responsible for taking abstract definitions of
